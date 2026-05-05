@@ -96,6 +96,18 @@ export function InstanceDetailPage() {
     return { stage: s.name, rolle: s.rolle, approval: a, cls };
   });
 
+  // SLA-Status fuer die aktuelle Stage berechnen
+  const currentStageDef = stages.find((s) => s.name === currentStage);
+  const slaDays = currentStageDef?.sla_days ?? 14;
+  let waitingDays: number | null = null;
+  let slaState: "ok" | "near" | "breached" | null = null;
+  if (instance.stage_eingetreten_am && instance.status === "in_pruefung") {
+    waitingDays = (Date.now() - new Date(instance.stage_eingetreten_am).getTime()) / 86_400_000;
+    if (waitingDays >= slaDays) slaState = "breached";
+    else if (waitingDays >= slaDays / 2) slaState = "near";
+    else slaState = "ok";
+  }
+
   return (
     <section>
       <div className="flex items-center justify-between mb-6 no-print">
@@ -205,7 +217,23 @@ export function InstanceDetailPage() {
                     )}
                   </div>
                 ) : step.cls === "current" ? (
-                  <div className="mt-2 text-[13px]"><em className="text-warn">Wartet auf Entscheidung …</em></div>
+                  <div className="mt-2 text-[13px]">
+                    <em className="text-warn">Wartet auf Entscheidung …</em>
+                    {waitingDays !== null && (
+                      <span
+                        className={cn(
+                          "ml-3 font-mono text-[11px] uppercase tracking-wider",
+                          slaState === "ok" && "text-quiet",
+                          slaState === "near" && "text-warn",
+                          slaState === "breached" && "text-bad",
+                        )}
+                      >
+                        seit {waitingDays.toFixed(1)} Tagen · SLA {slaDays} Tage
+                        {slaState === "near" && " · Erinnerung faellig"}
+                        {slaState === "breached" && " · SLA ueberschritten"}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <div className="mt-2 text-[13px] text-quiet"><em>noch nicht erreicht</em></div>
                 )}

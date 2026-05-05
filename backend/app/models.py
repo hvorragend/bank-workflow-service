@@ -68,6 +68,13 @@ class FormInstance(Base):
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     abgeschlossen_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # SLA-Tracking (Phase 3 / Commit 8). stage_eingetreten_am bezieht sich auf die
+    # AKTUELLE Stage; bei jedem Stage-Wechsel wird der Wert neu gesetzt und die
+    # _sent_at-Felder werden geleert (Idempotenz pro Stage).
+    stage_eingetreten_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    erinnerung_sent_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    eskalation_sent_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     definition: Mapped[FormDefinition] = relationship(lazy="joined")
     approvals: Mapped[list[Approval]] = relationship(
         back_populates="instance", order_by="Approval.zeitstempel"

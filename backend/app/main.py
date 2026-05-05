@@ -43,10 +43,10 @@ AT_8_2_STAGES = [
 ]
 
 VORSTAND_STAGES = [
-    {"name": "vorbereitung",       "rolle": "Bereichsleiter"},
-    {"name": "rechtskonformitaet", "rolle": "Compliance"},
-    {"name": "vorstand",           "rolle": "Vorstand"},
-    {"name": "protokoll",          "rolle": "Vorstandssekretariat"},
+    {"name": "vorbereitung",       "rolle": "Bereichsleiter",        "sla_days": 5},
+    {"name": "rechtskonformitaet", "rolle": "Compliance",            "sla_days": 7},
+    {"name": "vorstand",           "rolle": "Vorstand",              "sla_days": 14},
+    {"name": "protokoll",          "rolle": "Vorstandssekretariat",  "sla_days": 3},
 ]
 
 
@@ -254,7 +254,13 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         _seed(db)
-    yield
+    # SLA-Scheduler hochfahren — ist No-op, wenn ESCALATION_ENABLED=False.
+    from .escalation import scheduler as escalation_scheduler
+    escalation_scheduler.start()
+    try:
+        yield
+    finally:
+        escalation_scheduler.stop()
 
 
 app = FastAPI(

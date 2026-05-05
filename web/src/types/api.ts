@@ -53,6 +53,7 @@ export interface UiSchema {
 export interface WorkflowStage {
   name: string;
   rolle: string;
+  sla_days?: number;
 }
 
 export interface FormDefinition {
@@ -96,6 +97,7 @@ export interface FormInstance {
   status: InstanceStatus;
   erstellt_am: string;
   abgeschlossen_am: string | null;
+  stage_eingetreten_am: string | null;
   approvals: Approval[];
   json_schema: JsonSchema;
   ui_schema: UiSchema;

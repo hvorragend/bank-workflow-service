@@ -433,6 +433,7 @@ def _to_instance_with_schema(instance: models.FormInstance) -> dict:
         "status": instance.status,
         "erstellt_am": instance.erstellt_am,
         "abgeschlossen_am": instance.abgeschlossen_am,
+        "stage_eingetreten_am": instance.stage_eingetreten_am,
         "approvals": instance.approvals,
         "json_schema": instance.definition.json_schema,
         "ui_schema": instance.definition.ui_schema,

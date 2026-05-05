@@ -33,6 +33,10 @@ def submit(instance: models.FormInstance) -> None:
 
     instance.aktuelle_stage = stages[0]["name"]
     instance.status = "in_pruefung"
+    # SLA-Tracking startet jetzt — Scheduler nutzt das als Bezugspunkt.
+    instance.stage_eingetreten_am = _utcnow()
+    instance.erinnerung_sent_at = None
+    instance.eskalation_sent_at = None
 
 
 def decide(
@@ -84,16 +88,25 @@ def decide(
     if entscheidung == "approved":
         if current_idx + 1 < len(stages):
             instance.aktuelle_stage = stages[current_idx + 1]["name"]
+            # Stage-Wechsel: SLA-Tracking auf neue Stage zuruecksetzen.
+            instance.stage_eingetreten_am = _utcnow()
+            instance.erinnerung_sent_at = None
+            instance.eskalation_sent_at = None
         else:
             instance.aktuelle_stage = "abgeschlossen"
             instance.status = "genehmigt"
             instance.abgeschlossen_am = _utcnow()
+            instance.stage_eingetreten_am = None
     elif entscheidung == "rejected":
         instance.status = "abgelehnt"
         instance.abgeschlossen_am = _utcnow()
+        instance.stage_eingetreten_am = None
     elif entscheidung == "returned":
         instance.status = "entwurf"
         instance.aktuelle_stage = "entwurf"
+        instance.stage_eingetreten_am = None
+        instance.erinnerung_sent_at = None
+        instance.eskalation_sent_at = None
     else:
         raise WorkflowError(f"Unbekannte Entscheidung: {entscheidung}.")
 

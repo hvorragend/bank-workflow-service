@@ -24,6 +24,8 @@ dependencies = [
   "slowapi>=0.1.9",
   # File-Upload (Phase 2 / Commit 5: Workflow-Schema-Upload via Multipart)
   "python-multipart>=0.0.9",
+  # SLA-Eskalation (Phase 3 / Commit 8)
+  "apscheduler>=3.10.4",
 ]
 
 [project.optional-dependencies]
