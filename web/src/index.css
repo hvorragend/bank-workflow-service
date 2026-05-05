@@ -54,3 +54,22 @@
   }
   textarea.input { @apply resize-y min-h-[96px]; }
 }
+
+/* ---------- Print-Variante (PDF-Export per Browser-Druck) ---------- */
+@media print {
+  /* Header, Tabs, Aktion-Boxen, Toasts blenden wir aus — nur der Antrag selbst soll auf Papier. */
+  header.print\:hidden,
+  nav,
+  .no-print,
+  button,
+  .toast { display: none !important; }
+
+  body { background: white !important; }
+  main { padding: 0 !important; max-width: 100% !important; }
+  .paper { border: none !important; padding: 0 !important; box-shadow: none !important; }
+  .badge { border: 1px solid currentColor; }
+  a { color: inherit !important; text-decoration: none !important; }
+  /* Eine eigene Print-Anmerkung im Detail-View koennen Komponenten via .print-only aktivieren */
+  .print-only { display: block !important; }
+}
+.print-only { display: none; }

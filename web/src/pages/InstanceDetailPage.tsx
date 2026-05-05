@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -97,12 +97,29 @@ export function InstanceDetailPage() {
 
   return (
     <section>
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 text-quiet hover:text-accent font-mono text-[11px] uppercase tracking-widest mb-6"
-      >
-        <ArrowLeft size={14} /> Zurueck
-      </button>
+      <div className="flex items-center justify-between mb-6 no-print">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 text-quiet hover:text-accent font-mono text-[11px] uppercase tracking-widest"
+        >
+          <ArrowLeft size={14} /> Zurueck
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-1.5 border border-rule px-3 py-1.5 text-xs text-muted hover:bg-ink hover:text-paper hover:border-ink transition"
+          title="Als PDF drucken (Browser-Druckdialog)"
+        >
+          <Printer size={14} /> Drucken / als PDF
+        </button>
+      </div>
+
+      {/* Print-only Header — wenn man die Seite druckt, soll das Dokument oben Identitaet zeigen */}
+      <div className="print-only mb-6">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted">Bank Workflow Service · Antragsbeleg</p>
+        <p className="font-mono text-[10px] text-muted">
+          Ausdruck vom {formatDate(new Date().toISOString())}
+        </p>
+      </div>
 
       <header className="mb-10 max-w-[720px]">
         <p className="eyebrow mb-3">Antrag · {instance.id.slice(0, 8)}</p>

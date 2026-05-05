@@ -1,4 +1,4 @@
-import { api, setAccessToken } from "./client";
+import { api, getAccessToken, setAccessToken } from "./client";
 import type {
   AuthUser,
   Entscheidung,
@@ -49,8 +49,64 @@ export function listDefinitions(typ?: string, nurAktiv = false): Promise<FormDef
 
 // --- Instances ---
 
-export function listInstances(): Promise<FormInstance[]> {
-  return api<FormInstance[]>("/instances");
+export interface ListInstancesParams {
+  mein?: boolean;
+  wartet_auf_mich?: boolean;
+  status?: string[];
+  typ?: string;
+  version?: string;
+  created_from?: string;
+  created_to?: string;
+  sort?: "created_desc" | "created_asc" | "updated_desc";
+  limit?: number;
+  offset?: number;
+}
+
+function toQuery(params: ListInstancesParams = {}): string {
+  const sp = new URLSearchParams();
+  if (params.mein) sp.set("mein", "true");
+  if (params.wartet_auf_mich) sp.set("wartet_auf_mich", "true");
+  if (params.status) for (const s of params.status) sp.append("status", s);
+  if (params.typ) sp.set("typ", params.typ);
+  if (params.version) sp.set("version", params.version);
+  if (params.created_from) sp.set("created_from", params.created_from);
+  if (params.created_to) sp.set("created_to", params.created_to);
+  if (params.sort) sp.set("sort", params.sort);
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params.offset !== undefined) sp.set("offset", String(params.offset));
+  const qs = sp.toString();
+  return qs ? "?" + qs : "";
+}
+
+export function listInstances(params: ListInstancesParams = {}): Promise<FormInstance[]> {
+  return api<FormInstance[]>(`/instances${toQuery(params)}`);
+}
+
+/** CSV-Export: liefert eine Blob fuer den Browser-Download. */
+export async function exportInstancesCsv(params: ListInstancesParams = {}): Promise<Blob> {
+  const sp = new URLSearchParams(toQuery(params).replace(/^\?/, ""));
+  sp.set("format", "csv");
+  const token = getAccessToken();
+  const r = await fetch(`/instances?${sp.toString()}`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.blob();
+}
+
+export interface InstanceStats {
+  status_counts: Record<string, number>;
+  stage_counts: Record<string, number>;
+  waiting_for_me: number;
+  own_instances: number;
+  last7_created: number;
+  last7_decided: number;
+  avg_decision_days: number | null;
+}
+
+export function getStats(): Promise<InstanceStats> {
+  return api<InstanceStats>("/instances/stats");
 }
 
 export function getInstance(id: string): Promise<FormInstance> {

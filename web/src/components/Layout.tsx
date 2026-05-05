@@ -5,9 +5,11 @@ import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
 const tabs = [
+  { to: "/",             label: "Aktuelles", end: true },
+  { to: "/antraege",     label: "Antraege" },
+  { to: "/archiv",       label: "Archiv" },
   { to: "/definitionen", label: "Definitionen" },
   { to: "/neu",          label: "Neuer Antrag" },
-  { to: "/antraege",     label: "Antraege" },
 ];
 
 export function Layout() {
@@ -54,6 +56,7 @@ export function Layout() {
               <NavLink
                 key={t.to}
                 to={t.to}
+                end={t.end}
                 className={({ isActive }) =>
                   cn(
                     "border-b-2 border-transparent pb-3.5 pt-3.5 mr-8 font-body text-[13px] font-medium uppercase tracking-wide text-muted hover:text-ink transition",

@@ -3,13 +3,21 @@
 Mit Commit 2 sind alle /instances-Endpunkte auth-pflichtig. `genehmiger` und
 `rolle` werden aus dem JWT gelesen statt aus dem Request-Body — die Identitaet
 ist nicht mehr selbst-deklariert.
+
+Mit Commit 4 (Dashboard + Archiv) bekommt /instances Filter-Parameter und
+einen /stats-Endpoint fuer Kennzahlen.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+from datetime import datetime, timezone
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, workflow
@@ -20,18 +28,204 @@ from ..database import get_db
 router = APIRouter(prefix="/instances", tags=["instances"])
 
 
-@router.get("", response_model=list[schemas.FormInstanceWithSchema])
+# Wir lassen Listen-Filter und Stats vor den /-Routen mit Path-Param greifen,
+# damit FastAPI die Routen in der richtigen Reihenfolge zuordnet.
+
+@router.get("/stats")
+def stats(
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    """Kennzahlen fuer das Aktuelles-Dashboard.
+
+    - Counts pro Status, pro Stage
+    - Wartet auf den eingeloggten User (Stage-Rolle in user.roles)
+    - Eigene Antraege (antragsteller == user.username)
+    - Letzte 7 Tage: erstellt / abgeschlossen
+    - Durchschnittliche Bearbeitungsdauer in Tagen (genehmigte Antraege)
+    """
+    # Pro-Status-Counts
+    status_counts: dict[str, int] = dict(
+        db.execute(
+            select(models.FormInstance.status, func.count())
+            .group_by(models.FormInstance.status)
+        ).all()
+    )
+
+    # Pro-Stage-Counts (nur in_pruefung)
+    stage_counts: dict[str, int] = dict(
+        db.execute(
+            select(models.FormInstance.aktuelle_stage, func.count())
+            .where(models.FormInstance.status == "in_pruefung")
+            .group_by(models.FormInstance.aktuelle_stage)
+        ).all()
+    )
+
+    # Wartet auf mich: alle in_pruefung-Antraege, deren Stage-Rolle in user.roles ist.
+    # Das machen wir in Python, weil workflow_stages JSON in SQLite ist und ein
+    # SQL-seitiger Filter nicht portabel waere.
+    pending = list(
+        db.scalars(
+            select(models.FormInstance).where(models.FormInstance.status == "in_pruefung")
+        ).all()
+    )
+    waiting_for_me = 0
+    for inst in pending:
+        stages = inst.definition.workflow_stages
+        match = next((s for s in stages if s["name"] == inst.aktuelle_stage), None)
+        if match and match.get("rolle") in user.roles:
+            waiting_for_me += 1
+
+    # Eigene Antraege
+    own = db.scalar(
+        select(func.count())
+        .select_from(models.FormInstance)
+        .where(models.FormInstance.antragsteller == user.username)
+    ) or 0
+
+    # Letzte 7 Tage
+    now = datetime.now(timezone.utc)
+    cutoff = now - _timedelta_days(7)
+    last7_created = db.scalar(
+        select(func.count())
+        .select_from(models.FormInstance)
+        .where(models.FormInstance.erstellt_am >= cutoff)
+    ) or 0
+    last7_decided = db.scalar(
+        select(func.count())
+        .select_from(models.FormInstance)
+        .where(models.FormInstance.abgeschlossen_am >= cutoff)
+    ) or 0
+
+    # Durchschnittsdauer (genehmigte Antraege) — in Python, weil JULIANDAY/EXTRACT
+    # zwischen SQLite und Postgres unterschiedlich heisst.
+    decided = list(
+        db.scalars(
+            select(models.FormInstance).where(models.FormInstance.status == "genehmigt")
+        ).all()
+    )
+    durations_days = [
+        (i.abgeschlossen_am - i.erstellt_am).total_seconds() / 86400
+        for i in decided
+        if i.abgeschlossen_am and i.erstellt_am
+    ]
+    avg_days = round(sum(durations_days) / len(durations_days), 1) if durations_days else None
+
+    return {
+        "status_counts": status_counts,
+        "stage_counts": stage_counts,
+        "waiting_for_me": waiting_for_me,
+        "own_instances": own,
+        "last7_created": last7_created,
+        "last7_decided": last7_decided,
+        "avg_decision_days": avg_days,
+    }
+
+
+def _timedelta_days(days: int):
+    from datetime import timedelta
+    return timedelta(days=days)
+
+
+@router.get("")
 def list_instances(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
+    mein: bool = Query(False, description="Nur Antraege des eingeloggten Antragstellers"),
+    wartet_auf_mich: bool = Query(False, description="Nur Antraege, deren aktuelle Stage zu meinen Rollen passt"),
+    status_in: list[str] | None = Query(None, alias="status", description="Status-Filter (Mehrfach erlaubt)"),
+    typ: str | None = Query(None, description="Filter auf FormDefinition.typ"),
+    version: str | None = Query(None, description="Filter auf FormDefinition.version"),
+    created_from: datetime | None = Query(None, description="Erstellt ab (ISO-8601)"),
+    created_to:   datetime | None = Query(None, description="Erstellt bis (ISO-8601)"),
+    sort: Literal["created_desc", "created_asc", "updated_desc"] = Query("created_desc"),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    format: Literal["json", "csv"] = Query("json"),
 ):
-    """Liste aller Antraege, neueste zuerst."""
-    instances = list(
-        db.scalars(
-            select(models.FormInstance).order_by(models.FormInstance.erstellt_am.desc())
-        ).all()
-    )
+    """Liste der Antraege. Filterung serverseitig — verhindert das Nachladen
+    der gesamten Tabelle ins Frontend, sobald das Archiv waechst."""
+    stmt = select(models.FormInstance)
+
+    if mein:
+        stmt = stmt.where(models.FormInstance.antragsteller == user.username)
+
+    if status_in:
+        stmt = stmt.where(models.FormInstance.status.in_(status_in))
+
+    if created_from:
+        stmt = stmt.where(models.FormInstance.erstellt_am >= created_from)
+    if created_to:
+        stmt = stmt.where(models.FormInstance.erstellt_am <= created_to)
+
+    if typ or version:
+        stmt = stmt.join(models.FormDefinition,
+                         models.FormDefinition.id == models.FormInstance.form_definition_id)
+        if typ:
+            stmt = stmt.where(models.FormDefinition.typ == typ)
+        if version:
+            stmt = stmt.where(models.FormDefinition.version == version)
+
+    if sort == "created_asc":
+        stmt = stmt.order_by(models.FormInstance.erstellt_am.asc())
+    elif sort == "updated_desc":
+        # Naeherung: abgeschlossen_am, sonst erstellt_am
+        stmt = stmt.order_by(
+            func.coalesce(models.FormInstance.abgeschlossen_am, models.FormInstance.erstellt_am).desc()
+        )
+    else:
+        stmt = stmt.order_by(models.FormInstance.erstellt_am.desc())
+
+    stmt = stmt.limit(limit).offset(offset)
+    instances = list(db.scalars(stmt).all())
+
+    # "wartet auf mich" — Filter in Python, da Stage-Rollen in workflow_stages JSON liegen.
+    if wartet_auf_mich:
+        filtered = []
+        for inst in instances:
+            if inst.status != "in_pruefung":
+                continue
+            stages = inst.definition.workflow_stages
+            match = next((s for s in stages if s["name"] == inst.aktuelle_stage), None)
+            if match and match.get("rolle") in user.roles:
+                filtered.append(inst)
+        instances = filtered
+
+    if format == "csv":
+        return _csv_response(instances)
+
     return [_to_instance_with_schema(i) for i in instances]
+
+
+def _csv_response(instances: list[models.FormInstance]) -> Response:
+    buf = io.StringIO()
+    w = csv.writer(buf, dialect="excel", delimiter=";")
+    w.writerow([
+        "id", "schema_typ", "schema_version", "antragsteller", "status",
+        "aktuelle_stage", "erstellt_am", "abgeschlossen_am", "titel",
+    ])
+    for i in instances:
+        titel = (
+            (i.daten or {}).get("vorhaben", {}).get("titel")
+            or (i.daten or {}).get("beschluss", {}).get("titel")
+            or ""
+        )
+        w.writerow([
+            i.id,
+            i.definition.typ,
+            i.definition.version,
+            i.antragsteller,
+            i.status,
+            i.aktuelle_stage,
+            i.erstellt_am.isoformat() if i.erstellt_am else "",
+            i.abgeschlossen_am.isoformat() if i.abgeschlossen_am else "",
+            titel,
+        ])
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="antraege.csv"'},
+    )
 
 
 def _validate_against_definition(daten: dict, definition: models.FormDefinition) -> None:

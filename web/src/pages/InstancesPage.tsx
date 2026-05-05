@@ -1,44 +1,59 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
-import { listInstances } from "@/api/endpoints";
+import { listInstances, type ListInstancesParams } from "@/api/endpoints";
 import { formatDate, humanize } from "@/lib/utils";
 import type { FormInstance } from "@/types/api";
 
+const OFFENE_STATUS = ["entwurf", "in_pruefung"];
+
 function instanceTitle(i: FormInstance): string {
-  return (
-    i.daten?.vorhaben?.titel ||
-    i.daten?.beschluss?.titel ||
-    "(ohne Titel)"
-  );
+  return i.daten?.vorhaben?.titel || i.daten?.beschluss?.titel || "(ohne Titel)";
 }
 
 function stageLabel(i: FormInstance): string {
-  if (i.status === "genehmigt") return "abgeschlossen";
-  if (i.status === "abgelehnt") return "abgelehnt";
   if (i.status === "entwurf") return "Entwurf";
   return humanize(i.aktuelle_stage);
 }
 
 export function InstancesPage() {
+  const [params] = useSearchParams();
+  const mein = params.get("mein") === "true";
+  const wartet = params.get("wartet_auf_mich") === "true";
+
+  const queryParams: ListInstancesParams = {
+    status: OFFENE_STATUS,
+    mein: mein || undefined,
+    wartet_auf_mich: wartet || undefined,
+    sort: "updated_desc",
+    limit: 200,
+  };
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["instances"],
-    queryFn: listInstances,
+    queryKey: ["instances", "open", queryParams],
+    queryFn: () => listInstances(queryParams),
   });
+
+  let titel = "Offene Antraege";
+  let beschreibung =
+    "Alle laufenden Antraege — Entwuerfe und in Pruefung befindliche. Abgeschlossene Antraege findest du im Archiv.";
+  if (mein) {
+    titel = "Eigene offene Antraege";
+    beschreibung = "Antraege, die du selbst angelegt hast und die noch offen sind.";
+  } else if (wartet) {
+    titel = "Wartet auf deine Entscheidung";
+    beschreibung = "Antraege, deren aktuelle Stage zu einer deiner Rollen passt.";
+  }
 
   return (
     <section>
       <header className="mb-10 max-w-[720px]">
-        <p className="eyebrow mb-3">03 · Antraege</p>
+        <p className="eyebrow mb-3">Antraege</p>
         <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
-          Eingegangene Antraege
+          {titel}
         </h2>
-        <p className="mt-4 text-[15.5px] text-muted">
-          Jede Zeile zeigt die Schema-Version, an die der Antrag bei seiner
-          Erstellung gebunden wurde. Klicke einen Antrag an, um ihn in genau
-          dieser Version zu oeffnen.
-        </p>
+        <p className="mt-4 text-[15.5px] text-muted">{beschreibung}</p>
       </header>
 
       {isLoading && (
@@ -53,7 +68,7 @@ export function InstancesPage() {
       )}
       {data && data.length === 0 && (
         <div className="border border-dashed border-rule py-20 text-center text-muted italic">
-          Noch keine Antraege — erstelle deinen ersten Antrag im Tab „Neuer Antrag".
+          Keine offenen Antraege.
         </div>
       )}
       {data && data.length > 0 && (
@@ -68,7 +83,7 @@ export function InstancesPage() {
                 <h4 className="font-display font-display font-medium text-[17px] tracking-tightish m-0">
                   {instanceTitle(i)}
                 </h4>
-                <div className="mt-1 font-mono text-[11px] text-quiet tracking-wide">
+                <div className="mt-1 font-mono text-[11px] text-quiet">
                   <span className="text-accent">{i.schema_version}</span>{" "}
                   ·  ID {i.id.slice(0, 8)} ·  von {i.antragsteller} ·  {formatDate(i.erstellt_am)}
                 </div>
