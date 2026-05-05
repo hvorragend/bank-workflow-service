@@ -22,6 +22,8 @@ dependencies = [
   "argon2-cffi>=23.1.0",
   "pyjwt>=2.8.0",
   "slowapi>=0.1.9",
+  # File-Upload (Phase 2 / Commit 5: Workflow-Schema-Upload via Multipart)
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

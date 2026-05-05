@@ -25,6 +25,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select, text
 
 from . import models
+from .admin import router as admin_router
 from .auth import router as auth_router
 from .database import Base, SessionLocal, engine
 from .routers import definitions, instances
@@ -285,6 +286,7 @@ app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_excee
 app.include_router(auth_router.router)
 app.include_router(definitions.router)
 app.include_router(instances.router)
+app.include_router(admin_router.router)
 
 
 @app.get("/", tags=["meta"])

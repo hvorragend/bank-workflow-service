@@ -4,7 +4,9 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
-const tabs = [
+interface Tab { to: string; label: string; end?: boolean }
+
+const baseTabs: Tab[] = [
   { to: "/",             label: "Aktuelles", end: true },
   { to: "/antraege",     label: "Antraege" },
   { to: "/archiv",       label: "Archiv" },
@@ -12,10 +14,17 @@ const tabs = [
   { to: "/neu",          label: "Neuer Antrag" },
 ];
 
+const adminTabs: Tab[] = [
+  { to: "/admin",        label: "Admin",     end: true },
+  { to: "/admin/audit",  label: "Audit" },
+];
+
 export function Layout() {
   const { state, logout } = useAuth();
   const navigate = useNavigate();
   const user = state.status === "authenticated" ? state.user : null;
+  const isAdmin = !!user?.roles.includes("Admin");
+  const tabs = isAdmin ? [...baseTabs, ...adminTabs] : baseTabs;
 
   return (
     <>

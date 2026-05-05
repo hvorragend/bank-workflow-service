@@ -109,6 +109,98 @@ export function getStats(): Promise<InstanceStats> {
   return api<InstanceStats>("/instances/stats");
 }
 
+// --- Admin (Phase 2 / Commit 5) ---
+
+export interface UploadDefinitionPayload {
+  typ: string;
+  version: string;
+  titel: string;
+  workflow_stages: { name: string; rolle: string }[];
+  json_schema: File;
+  ui_schema: File;
+}
+
+export async function uploadDefinition(p: UploadDefinitionPayload): Promise<FormDefinition> {
+  const fd = new FormData();
+  fd.set("typ", p.typ);
+  fd.set("version", p.version);
+  fd.set("titel", p.titel);
+  fd.set("workflow_stages", JSON.stringify(p.workflow_stages));
+  fd.set("json_schema", p.json_schema);
+  fd.set("ui_schema",   p.ui_schema);
+
+  const token = getAccessToken();
+  const r = await fetch("/admin/definitions/upload", {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return (await r.json()) as FormDefinition;
+}
+
+export interface DiffEntry {
+  kind: "field_added" | "field_removed" | "type_changed" | "required_changed" | "constraint_changed" | "enum_changed";
+  path: string;
+  before: any;
+  after: any;
+}
+
+export interface DiffResult {
+  from: { id: string; typ: string; version: string };
+  to:   { id: string; typ: string; version: string };
+  diffs: DiffEntry[];
+  summary: Record<string, number>;
+}
+
+export function diffDefinitions(aId: string, bId: string): Promise<DiffResult> {
+  return api<DiffResult>(`/admin/definitions/${aId}/diff/${bId}`);
+}
+
+export function activateDefinition(id: string): Promise<FormDefinition> {
+  return api<FormDefinition>(`/definitions/${id}/activate`, { method: "POST" });
+}
+
+export function retireDefinition(id: string): Promise<FormDefinition> {
+  return api<FormDefinition>(`/admin/definitions/${id}/retire`, { method: "POST" });
+}
+
+export interface AuditEvent {
+  id: string;
+  zeitstempel: string;
+  kategorie: string;
+  action: string;
+  akteur: string | null;
+  target_type: string | null;
+  target_id: string | null;
+  ip: string | null;
+  payload: Record<string, any> | null;
+}
+
+export interface ListAuditParams {
+  kategorie?: string;
+  akteur?: string;
+  seit?: string;
+  limit?: number;
+  sort?: "asc" | "desc";
+}
+
+export function listAudit(params: ListAuditParams = {}): Promise<AuditEvent[]> {
+  const sp = new URLSearchParams();
+  if (params.kategorie) sp.set("kategorie", params.kategorie);
+  if (params.akteur)    sp.set("akteur", params.akteur);
+  if (params.seit)      sp.set("seit", params.seit);
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params.sort)      sp.set("sort", params.sort);
+  const qs = sp.toString();
+  return api<AuditEvent[]>(`/admin/audit${qs ? "?" + qs : ""}`);
+}
+
 export function getInstance(id: string): Promise<FormInstance> {
   return api<FormInstance>(`/instances/${id}`);
 }

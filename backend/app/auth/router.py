@@ -9,6 +9,8 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from .. import audit as audit_db
+from ..database import SessionLocal
 from .config import get_settings
 from .dependencies import get_current_user
 from .jwt_handler import decode_token, issue_access_token, issue_refresh_token
@@ -46,7 +48,8 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 def _audit(action: str, username: str, source: str, ip: str, success: bool, reason: str = "") -> None:
-    """Strukturierter Auth-Audit-Eintrag — separates Logger-Topic."""
+    """Strukturierter Auth-Audit-Eintrag — schreibt parallel in Container-Log
+    und in audit_events-Tabelle, damit Admin-UI und Container-Sammler unabhaengig sind."""
     audit_log = logging.getLogger("auth.audit")
     audit_log.info(
         "auth_event",
@@ -59,6 +62,20 @@ def _audit(action: str, username: str, source: str, ip: str, success: bool, reas
             "auth_reason": reason,
         },
     )
+    # Persistierung in DB; eigene Session, weil wir aus Routen-Handlern und
+    # nicht-handler-Kontexten gleichermassen aufgerufen werden.
+    try:
+        with SessionLocal() as db:
+            audit_db.write_event(
+                db,
+                kategorie="auth",
+                action=f"login.{'success' if success else 'failure'}" if action == "login" else action,
+                akteur=username if username and username != "?" else None,
+                ip=ip,
+                payload={"source": source, "reason": reason} if not success or action != "login" else {"source": source},
+            )
+    except Exception as e:  # pragma: no cover  — Audit darf den Login nicht blockieren
+        log.warning("Audit-DB-Persistierung fehlgeschlagen: %s", e)
 
 
 def _try_authenticate(username: str, password: str) -> AuthenticatedUser:

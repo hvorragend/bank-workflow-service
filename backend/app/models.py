@@ -89,3 +89,24 @@ class Approval(Base):
     zeitstempel: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     instance: Mapped[FormInstance] = relationship(back_populates="approvals")
+
+
+class AuditEvent(Base):
+    """Audit-Eintrag fuer Admin-Sicht (Login/Logout, Definition-Lifecycle, …).
+
+    Doppelt gefuehrt: zusaetzlich zum strukturierten Container-Log auch in der DB,
+    damit der Admin-Bereich Filter und Suche bedienen kann. Bei viel Volumen
+    (Phase 3) sollte das in eine separate DB oder ein Logaggregator wandern.
+    """
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    zeitstempel: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    kategorie: Mapped[str] = mapped_column(String(30), index=True)
+    # Aktion in Punkt-Notation: 'login.success', 'definition.uploaded', 'definition.activated', …
+    action: Mapped[str] = mapped_column(String(80))
+    akteur: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    target_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
