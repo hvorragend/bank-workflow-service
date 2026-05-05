@@ -3,6 +3,89 @@ import { useQuery } from "@tanstack/react-query";
 import { listDefinitions } from "@/api/endpoints";
 import { countFields } from "@/lib/schema-rules";
 import { cn } from "@/lib/utils";
+import type { WorkflowGraph } from "@/types/api";
+
+/** Holt die User-Tasks aus dem Workflow-DAG in topologischer Reihenfolge.
+ * Bei parallelen Branches werden die Branches mit "+" verbunden, um zu zeigen
+ * dass sie gleichzeitig laufen. Beispiel: "Vorbereitung → Compliance + Risiko → Vorstand". */
+function workflowSummary(graph: WorkflowGraph): string {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const out: Map<string, string[]> = new Map();
+  for (const e of graph.edges) {
+    if (!out.has(e.from)) out.set(e.from, []);
+    out.get(e.from)!.push(e.to);
+  }
+  const start = graph.nodes.find((n) => n.type === "start");
+  if (!start) return "";
+
+  const segments: string[] = [];
+  const visited = new Set<string>();
+
+  function walk(nid: string): string | null {
+    if (visited.has(nid)) return null;
+    visited.add(nid);
+    const n = byId.get(nid);
+    if (!n) return null;
+    const successors = out.get(nid) || [];
+    if (n.type === "start") {
+      for (const s of successors) {
+        const seg = walk(s);
+        if (seg) segments.push(seg);
+      }
+      return null;
+    }
+    if (n.type === "end") return null;
+    if (n.type === "user_task") {
+      const label = n.rolle || n.label || n.id;
+      for (const s of successors) {
+        const seg = walk(s);
+        if (seg) segments.push(seg);
+      }
+      return label;
+    }
+    if (n.type === "parallel_split") {
+      // Sammele die Rollen jedes Branches bis zum Join.
+      const branchLabels = successors.map((b) => collectBranch(b)).filter(Boolean) as string[];
+      const branchPart = branchLabels.join(" + ");
+      // Finde den Join + folge danach
+      // Annahme: Validator hat sichergestellt, dass alle Branches denselben Join treffen.
+      const joinIds = new Set<string>();
+      for (const b of successors) findJoin(b, joinIds);
+      let after: string | null = null;
+      for (const j of joinIds) {
+        for (const s of out.get(j) || []) {
+          const seg = walk(s);
+          if (seg) after = after ? `${after} → ${seg}` : seg;
+        }
+      }
+      return after ? `(${branchPart}) → ${after}` : `(${branchPart})`;
+    }
+    return null;
+  }
+
+  function collectBranch(nid: string): string | null {
+    const n = byId.get(nid);
+    if (!n) return null;
+    if (n.type === "user_task") return n.rolle || n.label || n.id;
+    if (n.type === "parallel_join") return null;
+    const next = (out.get(nid) || [])[0];
+    if (!next) return null;
+    return collectBranch(next);
+  }
+
+  function findJoin(nid: string, acc: Set<string>): void {
+    const n = byId.get(nid);
+    if (!n) return;
+    if (n.type === "parallel_join") { acc.add(nid); return; }
+    for (const s of out.get(nid) || []) findJoin(s, acc);
+  }
+
+  for (const s of out.get(start.id) || []) {
+    const seg = walk(s);
+    if (seg) segments.push(seg);
+  }
+  return segments.join(" → ");
+}
 
 export function DefinitionsPage() {
   const { data, isLoading, error } = useQuery({
@@ -51,12 +134,7 @@ export function DefinitionsPage() {
                   <div className="col-span-2">
                     <div className="label-mono mb-0.5">Genehmigungsweg</div>
                     <div className="text-[12px] text-muted leading-snug">
-                      {d.workflow_stages.map((s, i) => (
-                        <span key={i}>
-                          {s.rolle}
-                          {i < d.workflow_stages.length - 1 && " → "}
-                        </span>
-                      ))}
+                      {workflowSummary(d.workflow_graph)}
                     </div>
                   </div>
                 </div>
@@ -94,12 +172,7 @@ export function DefinitionsPage() {
                     <Td><span className={`badge badge-${d.status}`}>{d.status}</span></Td>
                     <Td>
                       <div className="text-xs text-muted">
-                        {d.workflow_stages.map((s, i) => (
-                          <span key={i}>
-                            {s.rolle}
-                            {i < d.workflow_stages.length - 1 && " → "}
-                          </span>
-                        ))}
+                        {workflowSummary(d.workflow_graph)}
                       </div>
                     </Td>
                     <Td align="right">

@@ -129,3 +129,16 @@ def load_ldap_config(path: str | Path | None = None) -> LdapConfig:
     body = dict(raw.get("ldap", {}))
     body["role_mapping"] = raw.get("role_mapping", {})
     return LdapConfig(**body)
+
+
+def list_known_roles() -> list[str]:
+    """Vereinigt alle Rollen aus lokalen Usern und LDAP-Mapping zu einer
+    sortierten Liste. Wird vom Designer fuer das Rollen-Dropdown genutzt."""
+    roles: set[str] = set()
+    for user in load_local_users().values():
+        roles.update(user.roles)
+    ldap = load_ldap_config()
+    for mapped in ldap.role_mapping.values():
+        if isinstance(mapped, list):
+            roles.update(mapped)
+    return sorted(r for r in roles if r and isinstance(r, str))

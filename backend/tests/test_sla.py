@@ -64,14 +64,16 @@ def _create_in_review_instance(client, admin_auth) -> str:
 
 
 def _backdate_stage(instance_id: str, days_ago: float) -> None:
-    """Setzt stage_eingetreten_am zurueck, ohne den Scanner zu durchlaufen."""
+    """Setzt eingetreten_am aller aktiven Stages zurueck, ohne den Scanner
+    zu durchlaufen. Wirkt fuer alle parallelen Branches gleichermassen."""
     from app.database import SessionLocal
-    from app.models import FormInstance
+    from app.models import FormInstance, FormInstanceActiveStage
     with SessionLocal() as db:
         inst = db.get(FormInstance, instance_id)
-        inst.stage_eingetreten_am = datetime.now(timezone.utc) - timedelta(days=days_ago)
-        inst.erinnerung_sent_at = None
-        inst.eskalation_sent_at = None
+        for active in inst.active_stages:
+            active.eingetreten_am = datetime.now(timezone.utc) - timedelta(days=days_ago)
+            active.erinnerung_sent_at = None
+            active.eskalation_sent_at = None
         db.commit()
 
 
@@ -129,17 +131,18 @@ def test_idempotenz_zweiter_scan_macht_nichts(client, admin_auth, enable_notific
 
 
 def test_stage_wechsel_setzt_sla_zurueck(client, admin_auth, enable_notifications_and_escalation, captured_mails):
+    from .conftest import approve_one
     iid = _create_in_review_instance(client, admin_auth)
     _backdate_stage(iid, days_ago=11)
 
     from app.escalation.scanner import scan_once
     scan_once()  # eskaliert
 
-    # Admin entscheidet: approved -> naechste Stage. SLA muss zuruecksetzen.
+    # Admin entscheidet: approved -> naechste Stage. SLA muss zuruecksetzen
+    # (neue active_stage-Row mit frischem eingetreten_am).
     captured_mails.clear()
-    client.post(f"/instances/{iid}/decide", json={"entscheidung": "approved"}, headers=admin_auth)
+    approve_one(client, admin_auth, iid)
 
-    # Direkt nach Stage-Wechsel keine Mahnung
     counts = scan_once()
     assert counts["erinnerungen"] == 0
     assert counts["eskalationen"] == 0

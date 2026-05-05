@@ -11,7 +11,7 @@ import { DynamicForm } from "@/components/DynamicForm";
 import { useToast } from "@/components/Toaster";
 import { humanizeBackendError } from "@/lib/schema-rules";
 import { cn, formatDate, humanize } from "@/lib/utils";
-import type { Approval, Entscheidung, FormInstance } from "@/types/api";
+import type { ActiveStage, Approval, Entscheidung, FormInstance, GraphNode } from "@/types/api";
 
 function instanceTitle(i: FormInstance): string {
   return (
@@ -26,9 +26,9 @@ function badgeForDecision(d: Entscheidung): string {
 }
 
 interface TimelineStep {
-  stage: string;
-  rolle: string;
+  node: GraphNode;
   approval?: Approval;
+  active?: ActiveStage;
   cls: "" | "done" | "current" | "rejected";
 }
 
@@ -59,9 +59,11 @@ export function InstanceDetailPage() {
   });
 
   const [kommentar, setKommentar] = useState("");
+  const [selectedNodeId, setSelectedNodeId] = useState<string>("");
   const decideMut = useMutation({
-    mutationFn: (entscheidung: Entscheidung) => decideInstance(id, entscheidung, kommentar || undefined),
-    onSuccess: (_data, entscheidung) => {
+    mutationFn: ({ nodeId, entscheidung }: { nodeId: string; entscheidung: Entscheidung }) =>
+      decideInstance(id, nodeId, entscheidung, kommentar || undefined),
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["instance", id] });
       qc.invalidateQueries({ queryKey: ["instances"] });
       setKommentar("");
@@ -70,7 +72,7 @@ export function InstanceDetailPage() {
         rejected: "Entscheidung: abgelehnt.",
         returned: "Antrag zur Ueberarbeitung zurueckgewiesen.",
       };
-      show(map[entscheidung]);
+      show(map[vars.entscheidung]);
     },
     onError: (err) => {
       const detail = err instanceof ApiError ? err.detail : err.message;
@@ -81,27 +83,34 @@ export function InstanceDetailPage() {
   if (isLoading) return <div className="text-quiet italic">Lade Antrag …</div>;
   if (!instance) return <div className="text-bad">Antrag nicht gefunden.</div>;
 
-  const stages = instance.workflow_stages;
+  const taskNodes = instance.workflow_graph.nodes.filter((n) => n.type === "user_task");
   const approvals = instance.approvals ?? [];
-  const currentStage = instance.aktuelle_stage;
-  const currentStageRolle = stages.find((s) => s.name === currentStage)?.rolle ?? "";
+  const activeStages = instance.active_stages ?? [];
   const userRoles = state.status === "authenticated" ? state.user.roles : [];
-  const userCanDecide = !!currentStageRolle && userRoles.includes(currentStageRolle);
 
-  const timeline: TimelineStep[] = stages.map((s) => {
-    const a = approvals.find((x) => x.stage === s.name);
+  const timeline: TimelineStep[] = taskNodes.map((node) => {
+    // Eine Approval-Row pro Knoten; bei Zyklen unmoeglich (Validator), also reicht "first match".
+    const approval = approvals.find((a) => a.stage === node.id);
+    const active = activeStages.find((a) => a.node_id === node.id);
     let cls: TimelineStep["cls"] = "";
-    if (a) cls = a.entscheidung === "rejected" ? "rejected" : "done";
-    else if (s.name === currentStage && instance.status === "in_pruefung") cls = "current";
-    return { stage: s.name, rolle: s.rolle, approval: a, cls };
+    if (approval) cls = approval.entscheidung === "rejected" ? "rejected" : "done";
+    else if (active) cls = "current";
+    return { node, approval, active, cls };
   });
 
-  const currentStageDef = stages.find((s) => s.name === currentStage);
-  const slaDays = currentStageDef?.sla_days ?? 14;
+  // Default-Selection: erster aktiver Task in einer Rolle des Users — sonst der erste aktive ueberhaupt.
+  const userActiveStages = activeStages.filter((a) => userRoles.includes(a.rolle));
+  const effectiveSelected =
+    selectedNodeId
+      ? activeStages.find((a) => a.node_id === selectedNodeId) ?? null
+      : userActiveStages[0] ?? activeStages[0] ?? null;
+
   let waitingDays: number | null = null;
   let slaState: "ok" | "near" | "breached" | null = null;
-  if (instance.stage_eingetreten_am && instance.status === "in_pruefung") {
-    waitingDays = (Date.now() - new Date(instance.stage_eingetreten_am).getTime()) / 86_400_000;
+  if (effectiveSelected) {
+    const node = taskNodes.find((n) => n.id === effectiveSelected.node_id);
+    const slaDays = node?.sla_days ?? 14;
+    waitingDays = (Date.now() - new Date(effectiveSelected.eingetreten_am).getTime()) / 86_400_000;
     if (waitingDays >= slaDays) slaState = "breached";
     else if (waitingDays >= slaDays / 2) slaState = "near";
     else slaState = "ok";
@@ -173,7 +182,8 @@ export function InstanceDetailPage() {
           Genehmigungsverlauf
         </h3>
         <p className="text-[13px] text-muted mt-1 mb-4">
-          Revisionssichere Historie aller Stage-Entscheidungen.
+          Revisionssichere Historie aller Stage-Entscheidungen. Bei parallelen Branches
+          sind mehrere Tasks gleichzeitig &bdquo;Wartet&ldquo;.
         </p>
         <div className="pl-1 sm:pl-2">
           {timeline.map((step, idx) => (
@@ -194,9 +204,9 @@ export function InstanceDetailPage() {
               </div>
               <div className="min-w-0">
                 <div className="font-display font-semibold text-base">
-                  {humanize(step.stage)}
+                  {humanize(step.node.label || step.node.id)}
                 </div>
-                <div className="label-mono mt-0.5">{step.rolle}</div>
+                <div className="label-mono mt-0.5">{step.node.rolle}</div>
                 {step.approval ? (
                   <div className="mt-2 text-[13px] text-muted">
                     <div className="flex flex-wrap items-center gap-2">
@@ -217,20 +227,6 @@ export function InstanceDetailPage() {
                 ) : step.cls === "current" ? (
                   <div className="mt-2 text-[13px]">
                     <em className="text-warn font-medium">Wartet auf Entscheidung …</em>
-                    {waitingDays !== null && (
-                      <div
-                        className={cn(
-                          "mt-1 sm:mt-0 sm:inline sm:ml-3 font-mono text-[11px] uppercase tracking-wider",
-                          slaState === "ok" && "text-quiet",
-                          slaState === "near" && "text-warn",
-                          slaState === "breached" && "text-bad",
-                        )}
-                      >
-                        seit {waitingDays.toFixed(1)} Tagen · SLA {slaDays} Tage
-                        {slaState === "near" && " · Erinnerung faellig"}
-                        {slaState === "breached" && " · SLA ueberschritten"}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="mt-2 text-[13px] text-quiet"><em>noch nicht erreicht</em></div>
@@ -241,14 +237,22 @@ export function InstanceDetailPage() {
         </div>
       </div>
 
-      {instance.status === "in_pruefung" && (
+      {instance.status === "in_pruefung" && activeStages.length > 0 && (
         <ApprovalBox
-          stage={currentStage}
-          rolle={currentStageRolle}
-          userCanDecide={userCanDecide}
+          activeStages={activeStages}
+          taskNodes={taskNodes}
+          userRoles={userRoles}
+          selectedNodeId={effectiveSelected?.node_id ?? ""}
+          setSelectedNodeId={setSelectedNodeId}
+          waitingDays={waitingDays}
+          slaState={slaState}
           kommentar={kommentar}
           setKommentar={setKommentar}
-          onDecide={(e) => decideMut.mutate(e)}
+          onDecide={(entscheidung) => {
+            const target = effectiveSelected?.node_id;
+            if (!target) return;
+            decideMut.mutate({ nodeId: target, entscheidung });
+          }}
           busy={decideMut.isPending}
         />
       )}
@@ -277,27 +281,81 @@ export function InstanceDetailPage() {
 }
 
 interface ABProps {
-  stage: string;
-  rolle: string;
-  userCanDecide: boolean;
+  activeStages: ActiveStage[];
+  taskNodes: GraphNode[];
+  userRoles: string[];
+  selectedNodeId: string;
+  setSelectedNodeId: (v: string) => void;
+  waitingDays: number | null;
+  slaState: "ok" | "near" | "breached" | null;
   kommentar: string;
   setKommentar: (v: string) => void;
   onDecide: (e: Entscheidung) => void;
   busy: boolean;
 }
 
-function ApprovalBox({ stage, rolle, userCanDecide, kommentar, setKommentar, onDecide, busy }: ABProps) {
+function ApprovalBox({
+  activeStages, taskNodes, userRoles,
+  selectedNodeId, setSelectedNodeId,
+  waitingDays, slaState,
+  kommentar, setKommentar, onDecide, busy,
+}: ABProps) {
+  const selected = activeStages.find((a) => a.node_id === selectedNodeId);
+  const node = taskNodes.find((n) => n.id === selected?.node_id);
+  const userCanDecide = !!selected && userRoles.includes(selected.rolle);
+  const slaDays = node?.sla_days ?? 14;
+
   return (
     <div className="mt-6 sm:mt-8 rounded-lg border border-rule border-l-[3px] border-l-warn bg-paper shadow-card px-5 sm:px-8 py-5 sm:py-7">
       <h3 className="font-display font-semibold text-xl sm:text-2xl m-0">Entscheidung treffen</h3>
-      <div className="mt-1 text-[13px] text-muted">
-        Aktuelle Stage: <strong className="text-ink">{humanize(stage)}</strong>
-        {" · "}erforderliche Rolle: <strong className="text-ink">{rolle}</strong>
-      </div>
-      {!userCanDecide && (
+
+      {activeStages.length > 1 && (
+        <div className="mt-3">
+          <label className="label-mono mb-2 block">Aktiver Task auswaehlen ({activeStages.length} parallel)</label>
+          <select
+            className="input"
+            value={selectedNodeId}
+            onChange={(e) => setSelectedNodeId(e.target.value)}
+            disabled={busy}
+          >
+            {activeStages.map((a) => {
+              const n = taskNodes.find((tn) => tn.id === a.node_id);
+              return (
+                <option key={a.node_id} value={a.node_id}>
+                  {humanize(n?.label || a.node_id)} · Rolle {a.rolle}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      )}
+
+      {selected && node && (
+        <div className="mt-3 text-[13px] text-muted">
+          Aktive Stage: <strong className="text-ink">{humanize(node.label || node.id)}</strong>
+          {" · "}erforderliche Rolle: <strong className="text-ink">{selected.rolle}</strong>
+          {waitingDays !== null && (
+            <span
+              className={cn(
+                "ml-3 font-mono text-[11px] uppercase tracking-wider",
+                slaState === "ok" && "text-quiet",
+                slaState === "near" && "text-warn",
+                slaState === "breached" && "text-bad",
+              )}
+            >
+              · seit {waitingDays.toFixed(1)} Tagen · SLA {slaDays} Tage
+              {slaState === "near" && " · Erinnerung faellig"}
+              {slaState === "breached" && " · SLA ueberschritten"}
+            </span>
+          )}
+        </div>
+      )}
+
+      {selected && !userCanDecide && (
         <div className="mt-4 hint hint-bad">
-          Deine Rollen ({"…"}) berechtigen dich nicht, in dieser Stage zu entscheiden.
-          Die Entscheidung muss durch eine Person mit der Rolle „{rolle}" getroffen werden.
+          Deine Rollen ({userRoles.join(", ") || "keine"}) berechtigen dich nicht, in dieser Stage
+          zu entscheiden. Die Entscheidung muss durch eine Person mit der Rolle
+          „{selected.rolle}" getroffen werden.
         </div>
       )}
       <div className="mt-5 grid grid-cols-1 gap-4">

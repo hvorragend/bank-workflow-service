@@ -37,18 +37,54 @@ LEGACY_DEMO_DIR = Path(__file__).resolve().parent.parent / "legacy_demo"
 
 # ---------- Seed-Hilfen ----------
 
-AT_8_2_STAGES = [
-    {"name": "fachbereich", "rolle": "Fachbereichsleiter"},
-    {"name": "risikomgmt",  "rolle": "Risikomanagement"},
-    {"name": "vorstand",    "rolle": "Vorstand"},
-]
+# Linearer DAG: start -> fachbereich -> risikomgmt -> vorstand -> end.
+AT_8_2_GRAPH: dict[str, Any] = {
+    "nodes": [
+        {"id": "start", "type": "start"},
+        {"id": "fachbereich", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+        {"id": "risikomgmt",  "type": "user_task", "label": "Risikomanagement", "rolle": "Risikomanagement"},
+        {"id": "vorstand",    "type": "user_task", "label": "Vorstand", "rolle": "Vorstand"},
+        {"id": "end", "type": "end"},
+    ],
+    "edges": [
+        {"from": "start", "to": "fachbereich"},
+        {"from": "fachbereich", "to": "risikomgmt"},
+        {"from": "risikomgmt", "to": "vorstand"},
+        {"from": "vorstand", "to": "end"},
+    ],
+}
 
-VORSTAND_STAGES = [
-    {"name": "vorbereitung",       "rolle": "Bereichsleiter",        "sla_days": 5},
-    {"name": "rechtskonformitaet", "rolle": "Compliance",            "sla_days": 7},
-    {"name": "vorstand",           "rolle": "Vorstand",              "sla_days": 14},
-    {"name": "protokoll",          "rolle": "Vorstandssekretariat",  "sla_days": 3},
-]
+# Vorstandsbeschluss mit parallelem Branch (Compliance + Risiko parallel) als
+# Demo des neuen DAG-Modells.
+VORSTAND_GRAPH: dict[str, Any] = {
+    "nodes": [
+        {"id": "start", "type": "start"},
+        {"id": "vorbereitung",       "type": "user_task", "label": "Vorbereitung",
+         "rolle": "Bereichsleiter", "sla_days": 5},
+        {"id": "split", "type": "parallel_split"},
+        {"id": "rechtskonformitaet", "type": "user_task", "label": "Compliance",
+         "rolle": "Compliance", "sla_days": 7},
+        {"id": "risikoanalyse",      "type": "user_task", "label": "Risikomanagement",
+         "rolle": "Risikomanagement", "sla_days": 7},
+        {"id": "join", "type": "parallel_join"},
+        {"id": "vorstand",  "type": "user_task", "label": "Vorstand",
+         "rolle": "Vorstand", "sla_days": 14},
+        {"id": "protokoll", "type": "user_task", "label": "Protokoll",
+         "rolle": "Vorstandssekretariat", "sla_days": 3},
+        {"id": "end", "type": "end"},
+    ],
+    "edges": [
+        {"from": "start", "to": "vorbereitung"},
+        {"from": "vorbereitung", "to": "split"},
+        {"from": "split", "to": "rechtskonformitaet"},
+        {"from": "split", "to": "risikoanalyse"},
+        {"from": "rechtskonformitaet", "to": "join"},
+        {"from": "risikoanalyse", "to": "join"},
+        {"from": "join", "to": "vorstand"},
+        {"from": "vorstand", "to": "protokoll"},
+        {"from": "protokoll", "to": "end"},
+    ],
+}
 
 
 def _load(filename: str) -> dict[str, Any]:
@@ -59,21 +95,21 @@ def _seed_definitions(db) -> dict[str, models.FormDefinition]:
     """Legt die drei Beispiel-Definitionen an und gibt sie nach Schluessel zurueck."""
     seeds = [
         ("at_8_2_v1",          "AT_8_2_Analyse",   "1.0.0",
-         "AT 8.2 Wesentlichkeitsanalyse v1.0.0",   AT_8_2_STAGES, "retired"),
+         "AT 8.2 Wesentlichkeitsanalyse v1.0.0",   AT_8_2_GRAPH, "retired"),
         ("at_8_2_v2",          "AT_8_2_Analyse",   "2.0.0",
-         "AT 8.2 Wesentlichkeitsanalyse v2.0.0",   AT_8_2_STAGES, "active"),
+         "AT 8.2 Wesentlichkeitsanalyse v2.0.0",   AT_8_2_GRAPH, "active"),
         ("vorstandsbeschluss_v1", "Vorstandsbeschluss", "1.0.0",
-         "Vorstandsbeschluss v1.0.0",              VORSTAND_STAGES, "active"),
+         "Vorstandsbeschluss v1.0.0",              VORSTAND_GRAPH, "active"),
     ]
     out: dict[str, models.FormDefinition] = {}
-    for key, typ, version, titel, stages, target_status in seeds:
+    for key, typ, version, titel, graph, target_status in seeds:
         d = models.FormDefinition(
             typ=typ,
             version=version,
             titel=titel,
             json_schema=_load(f"{key}.json"),
             ui_schema=_load(f"{key}.ui.json"),
-            workflow_stages=stages,
+            workflow_graph=graph,
             status=target_status,
             erstellt_von="seed",
         )
@@ -115,7 +151,6 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
                 ),
             },
         },
-        aktuelle_stage="abgeschlossen",
         status="genehmigt",
         erstellt_am=now - timedelta(days=12),
         abgeschlossen_am=now - timedelta(days=4),
@@ -188,21 +223,29 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
                 "at_8_2_referenz": "AT-8.2-Antrag #2026-014",
             },
         },
-        aktuelle_stage="vorstand",
         status="in_pruefung",
         erstellt_am=now - timedelta(days=6),
     )
     db.add(vb_pruefung)
     db.flush()
+    # Bereits genehmigte Stages: Vorbereitung + beide Branches der Parallelitaet.
+    # Aktiv ist jetzt der Vorstand (nach dem Join).
     for offset, (stage, rolle, gen, kommentar) in enumerate([
-        ("vorbereitung",       "Bereichsleiter", "k.heuer",    "Vorlage geprueft, Sachverhalt vollstaendig."),
-        ("rechtskonformitaet", "Compliance",     "j.seibold",  "AT 9 / DORA korrekt eingeordnet, Vertragsanforderungen vollstaendig."),
+        ("vorbereitung",       "Bereichsleiter",   "k.heuer",    "Vorlage geprueft, Sachverhalt vollstaendig."),
+        ("rechtskonformitaet", "Compliance",       "j.seibold",  "AT 9 / DORA korrekt eingeordnet, Vertragsanforderungen vollstaendig."),
+        ("risikoanalyse",      "Risikomanagement", "s.althaus",  "Risiken bewertet, Maßnahmen ausreichend."),
     ], start=1):
         db.add(models.Approval(
             instance_id=vb_pruefung.id, stage=stage, genehmiger=gen, rolle=rolle,
             entscheidung="approved", kommentar=kommentar,
             zeitstempel=now - timedelta(days=6 - offset * 2),
         ))
+    db.add(models.FormInstanceActiveStage(
+        instance_id=vb_pruefung.id,
+        node_id="vorstand",
+        rolle="Vorstand",
+        eingetreten_am=now - timedelta(days=2),
+    ))
 
     # 3) Vorstandsbeschluss, noch im Entwurf — zum Durchklicken
     vb_entwurf = models.FormInstance(
@@ -234,7 +277,6 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
                 "at_8_2_wesentlich": False,
             },
         },
-        aktuelle_stage="entwurf",
         status="entwurf",
         erstellt_am=now - timedelta(days=1),
     )

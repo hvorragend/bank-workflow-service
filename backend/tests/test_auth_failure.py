@@ -63,7 +63,8 @@ def test_admin_only_endpoint_blocks_non_admin(client):
         headers=auth_header(token),
         json={
             "typ": "Test", "version": "0.0.1", "titel": "Test",
-            "json_schema": {"type": "object"}, "ui_schema": {}, "workflow_stages": [],
+            "json_schema": {"type": "object"}, "ui_schema": {},
+            "workflow_graph": {"nodes": [], "edges": []},
             "erstellt_von": "vorstand",
         },
     )
@@ -76,6 +77,7 @@ def test_admin_only_endpoint_blocks_non_admin(client):
 )
 def test_decide_with_wrong_role_returns_403(client, admin_auth):
     """User ohne Vorstand-Rolle darf den Vorstandsbeschluss nicht in der Vorstand-Stage genehmigen."""
+    from .conftest import approve_all_active
     # Admin (alle Rollen) legt einen Antrag an und treibt ihn bis zur Vorstand-Stage.
     defs = client.get("/definitions").json()
     vb = next(d for d in defs if d["typ"] == "Vorstandsbeschluss" and d["status"] == "active")
@@ -111,18 +113,20 @@ def test_decide_with_wrong_role_returns_403(client, admin_auth):
     iid = r.json()["id"]
 
     # Admin treibt den Antrag bis zur Vorstand-Stage durch.
+    # Workflow: vorbereitung -> split(Compliance, Risiko) -> join -> vorstand -> protokoll -> end.
+    # Submit -> vorbereitung; approve -> beide parallel; approve all -> vorstand.
     client.post(f"/instances/{iid}/submit", headers=admin_auth)
-    for _ in range(2):  # vorbereitung, rechtskonformitaet
-        client.post(f"/instances/{iid}/decide", json={"entscheidung": "approved"}, headers=admin_auth)
+    approve_all_active(client, admin_auth, iid)  # vorbereitung
+    approve_all_active(client, admin_auth, iid)  # parallel pair (Compliance + Risiko)
 
     state = client.get(f"/instances/{iid}", headers=admin_auth).json()
-    assert state["aktuelle_stage"] == "vorstand"
+    assert {a["node_id"] for a in state["active_stages"]} == {"vorstand"}
 
     # Jetzt versucht ein User ohne Vorstand-Rolle die Genehmigung — muss 403 geben.
     fb_token = login_as(client, "fachbereich")
     r = client.post(
         f"/instances/{iid}/decide",
-        json={"entscheidung": "approved"},
+        json={"node_id": "vorstand", "entscheidung": "approved"},
         headers=auth_header(fb_token),
     )
     assert r.status_code == 403

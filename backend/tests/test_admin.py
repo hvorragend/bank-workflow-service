@@ -35,7 +35,17 @@ def test_upload_creates_draft_definition(client, admin_auth):
         "typ": "Test_Maske",
         "version": "1.0.0",
         "titel": "Test-Maske v1.0.0",
-        "workflow_stages": json.dumps([{"name": "fb", "rolle": "Fachbereichsleiter"}]),
+        "workflow_graph": json.dumps({
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "fb", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {"from": "start", "to": "fb"},
+                {"from": "fb", "to": "end"},
+            ],
+        }),
     }
     r = client.post("/admin/definitions/upload", data=data, files=files, headers=admin_auth)
     assert r.status_code == 201, r.text
@@ -53,7 +63,17 @@ def test_upload_rejects_invalid_json_schema(client, admin_auth):
     }
     data = {
         "typ": "Bad", "version": "1.0.0", "titel": "Bad",
-        "workflow_stages": json.dumps([{"name": "fb", "rolle": "Fachbereichsleiter"}]),
+        "workflow_graph": json.dumps({
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "fb", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {"from": "start", "to": "fb"},
+                {"from": "fb", "to": "end"},
+            ],
+        }),
     }
     r = client.post("/admin/definitions/upload", data=data, files=files, headers=admin_auth)
     assert r.status_code == 422
@@ -68,7 +88,17 @@ def test_upload_blocks_non_admin(client):
     }
     data = {
         "typ": "X", "version": "1.0.0", "titel": "X",
-        "workflow_stages": json.dumps([{"name": "fb", "rolle": "Fachbereichsleiter"}]),
+        "workflow_graph": json.dumps({
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "fb", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {"from": "start", "to": "fb"},
+                {"from": "fb", "to": "end"},
+            ],
+        }),
     }
     r = client.post("/admin/definitions/upload", data=data, files=files, headers=auth_header(fb))
     assert r.status_code == 403
@@ -121,7 +151,17 @@ def test_retire_active_definition(client, admin_auth):
     }
     data = {
         "typ": "Retire_Test", "version": "1.0.0", "titel": "Retire-Test",
-        "workflow_stages": json.dumps([{"name": "fb", "rolle": "Fachbereichsleiter"}]),
+        "workflow_graph": json.dumps({
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "fb", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {"from": "start", "to": "fb"},
+                {"from": "fb", "to": "end"},
+            ],
+        }),
     }
     r = client.post("/admin/definitions/upload", data=data, files=files, headers=admin_auth)
     assert r.status_code == 201, r.text

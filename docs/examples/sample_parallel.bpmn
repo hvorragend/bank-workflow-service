@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+    xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+    targetNamespace="http://bws.example.de/vorstandsbeschluss"
+    id="Definitions_vbg_v2">
+  <bpmn:process id="proc_vbg_v2" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" />
+    <bpmn:userTask id="Task_Vorbereitung" name="Vorbereitung"
+        camunda:assignee="Bereichsleiter">
+      <bpmn:documentation>sla: 5</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Split" />
+    <bpmn:userTask id="Task_Compliance" name="Compliance"
+        camunda:assignee="Compliance">
+      <bpmn:documentation>sla: 7</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Risiko" name="Risiko"
+        camunda:assignee="Risikomanagement">
+      <bpmn:documentation>sla: 7</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Join" />
+    <bpmn:userTask id="Task_Vorstand" name="Vorstand"
+        camunda:assignee="Vorstand">
+      <bpmn:documentation>sla: 14</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Protokoll" name="Protokoll"
+        camunda:assignee="Vorstandssekretariat">
+      <bpmn:documentation>sla: 3</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_1" />
+
+    <bpmn:sequenceFlow id="f1"  sourceRef="StartEvent_1"      targetRef="Task_Vorbereitung" />
+    <bpmn:sequenceFlow id="f2"  sourceRef="Task_Vorbereitung" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="f3a" sourceRef="Gateway_Split"     targetRef="Task_Compliance" />
+    <bpmn:sequenceFlow id="f3b" sourceRef="Gateway_Split"     targetRef="Task_Risiko" />
+    <bpmn:sequenceFlow id="f4a" sourceRef="Task_Compliance"   targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="f4b" sourceRef="Task_Risiko"       targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="f5"  sourceRef="Gateway_Join"      targetRef="Task_Vorstand" />
+    <bpmn:sequenceFlow id="f6"  sourceRef="Task_Vorstand"     targetRef="Task_Protokoll" />
+    <bpmn:sequenceFlow id="f7"  sourceRef="Task_Protokoll"    targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

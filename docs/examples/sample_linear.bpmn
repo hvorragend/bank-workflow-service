@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+    xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+    targetNamespace="http://bws.example.de/at_8_2"
+    id="Definitions_at82_v3">
+  <bpmn:process id="proc_at82_v3" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" />
+    <bpmn:userTask id="Task_Fachbereich" name="Fachbereichspruefung"
+        camunda:assignee="Fachbereichsleiter">
+      <bpmn:documentation>sla: 5</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Risiko" name="Risikomanagement"
+        camunda:assignee="Risikomanagement">
+      <bpmn:documentation>sla: 7</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Vorstand" name="Vorstand"
+        camunda:assignee="Vorstand">
+      <bpmn:documentation>sla: 14</bpmn:documentation>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_1" />
+
+    <bpmn:sequenceFlow id="f1" sourceRef="StartEvent_1"     targetRef="Task_Fachbereich" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Task_Fachbereich" targetRef="Task_Risiko" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Task_Risiko"      targetRef="Task_Vorstand" />
+    <bpmn:sequenceFlow id="f4" sourceRef="Task_Vorstand"    targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

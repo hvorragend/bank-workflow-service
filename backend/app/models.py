@@ -36,11 +36,10 @@ class FormDefinition(Base):
 
     json_schema: Mapped[dict[str, Any]] = mapped_column(JSON)
     ui_schema: Mapped[dict[str, Any]] = mapped_column(JSON)
-    workflow_stages: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
-    # Example workflow_stages:
-    # [{"name": "fachbereich", "rolle": "Fachbereichsleiter"},
-    #  {"name": "risikomgmt",  "rolle": "Risikomanagement"},
-    #  {"name": "vorstand",    "rolle": "Vorstand"}]
+    workflow_graph: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # Workflow-DAG mit Knoten (start, user_task, parallel_split, parallel_join, end)
+    # und Kanten {from, to}. Der Validator in app.workflow_graph.validate_graph
+    # erzwingt die Strukturregeln (genau 1 Start, ≥1 End, keine Zyklen, SESE-Splits).
 
     gueltig_von: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     gueltig_bis: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -61,24 +60,48 @@ class FormInstance(Base):
 
     daten: Mapped[dict[str, Any]] = mapped_column(JSON)
     antragsteller: Mapped[str] = mapped_column(String(100))
-    aktuelle_stage: Mapped[str] = mapped_column(String(50), default="entwurf")
     status: Mapped[str] = mapped_column(String(20), default="entwurf")
     # entwurf | in_pruefung | genehmigt | abgelehnt | zurueckgewiesen
 
     erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     abgeschlossen_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # SLA-Tracking (Phase 3 / Commit 8). stage_eingetreten_am bezieht sich auf die
-    # AKTUELLE Stage; bei jedem Stage-Wechsel wird der Wert neu gesetzt und die
-    # _sent_at-Felder werden geleert (Idempotenz pro Stage).
-    stage_eingetreten_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    erinnerung_sent_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    eskalation_sent_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
     definition: Mapped[FormDefinition] = relationship(lazy="joined")
     approvals: Mapped[list[Approval]] = relationship(
         back_populates="instance", order_by="Approval.zeitstempel"
     )
+    # Aktive Tasks (parallele Branches): null oder mehrere Eintraege, jeder
+    # mit eigenem SLA-Tracking. Bei terminalem Status (genehmigt/abgelehnt)
+    # ist die Liste leer.
+    active_stages: Mapped[list[FormInstanceActiveStage]] = relationship(
+        back_populates="instance", cascade="all, delete-orphan",
+    )
+
+
+class FormInstanceActiveStage(Base):
+    """Aktiver User-Task einer FormInstance.
+
+    Mit der Umstellung auf einen Workflow-DAG koennen mehrere Tasks gleichzeitig
+    aktiv sein (parallele Branches). Pro aktivem Task wird hier eine Zeile gefuehrt;
+    SLA-Reminder und Eskalation werden per Zeile getrackt, damit jeder Branch
+    eine eigene SLA-Uhr hat.
+    """
+    __tablename__ = "form_instance_active_stages"
+    __table_args__ = (
+        UniqueConstraint("instance_id", "node_id", name="uq_active_stage_instance_node"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    instance_id: Mapped[str] = mapped_column(
+        ForeignKey("form_instances.id", ondelete="CASCADE"), index=True
+    )
+    node_id: Mapped[str] = mapped_column(String(64))
+    rolle: Mapped[str] = mapped_column(String(100), index=True)
+    eingetreten_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    erinnerung_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    eskalation_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    instance: Mapped[FormInstance] = relationship(back_populates="active_stages")
 
 
 class Approval(Base):
@@ -87,7 +110,7 @@ class Approval(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     instance_id: Mapped[str] = mapped_column(ForeignKey("form_instances.id"), index=True)
-    stage: Mapped[str] = mapped_column(String(50))
+    stage: Mapped[str] = mapped_column(String(64))  # node_id im neuen DAG-Modell
     genehmiger: Mapped[str] = mapped_column(String(100))
     rolle: Mapped[str] = mapped_column(String(100))
     entscheidung: Mapped[str] = mapped_column(String(20))

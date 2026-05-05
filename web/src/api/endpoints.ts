@@ -5,6 +5,7 @@ import type {
   FormDefinition,
   FormInstance,
   TokenResponse,
+  WorkflowGraph,
 } from "@/types/api";
 
 // --- Auth ---
@@ -109,13 +110,13 @@ export function getStats(): Promise<InstanceStats> {
   return api<InstanceStats>("/instances/stats");
 }
 
-// --- Admin (Phase 2 / Commit 5) ---
+// --- Admin: Workflow-Definition + Designer ---
 
 export interface UploadDefinitionPayload {
   typ: string;
   version: string;
   titel: string;
-  workflow_stages: { name: string; rolle: string }[];
+  workflow_graph: WorkflowGraph;
   json_schema: File;
   ui_schema: File;
 }
@@ -125,7 +126,7 @@ export async function uploadDefinition(p: UploadDefinitionPayload): Promise<Form
   fd.set("typ", p.typ);
   fd.set("version", p.version);
   fd.set("titel", p.titel);
-  fd.set("workflow_stages", JSON.stringify(p.workflow_stages));
+  fd.set("workflow_graph", JSON.stringify(p.workflow_graph));
   fd.set("json_schema", p.json_schema);
   fd.set("ui_schema",   p.ui_schema);
 
@@ -142,6 +143,50 @@ export async function uploadDefinition(p: UploadDefinitionPayload): Promise<Form
     throw new Error(detail);
   }
   return (await r.json()) as FormDefinition;
+}
+
+export interface UploadDefinitionBpmnPayload {
+  typ: string;
+  version: string;
+  titel: string;
+  bpmn_xml: File;
+  json_schema: File;
+  ui_schema: File;
+}
+
+export async function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Promise<FormDefinition> {
+  const fd = new FormData();
+  fd.set("typ", p.typ);
+  fd.set("version", p.version);
+  fd.set("titel", p.titel);
+  fd.set("bpmn_xml", p.bpmn_xml);
+  fd.set("json_schema", p.json_schema);
+  fd.set("ui_schema",   p.ui_schema);
+
+  const token = getAccessToken();
+  const r = await fetch("/admin/definitions/upload-bpmn", {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return (await r.json()) as FormDefinition;
+}
+
+export function listAdminRoles(): Promise<{ roles: string[] }> {
+  return api<{ roles: string[] }>("/admin/roles");
+}
+
+export function validateGraph(graph: WorkflowGraph): Promise<{ ok: true }> {
+  return api<{ ok: true }>("/admin/definitions/validate-graph", {
+    method: "POST",
+    body: JSON.stringify({ workflow_graph: graph }),
+  });
 }
 
 export interface DiffEntry {
@@ -261,11 +306,12 @@ export function submitInstance(id: string): Promise<FormInstance> {
 
 export function decideInstance(
   id: string,
+  nodeId: string,
   entscheidung: Entscheidung,
   kommentar?: string,
 ): Promise<FormInstance> {
   return api<FormInstance>(`/instances/${id}/decide`, {
     method: "POST",
-    body: JSON.stringify({ entscheidung, kommentar: kommentar ?? null }),
+    body: JSON.stringify({ node_id: nodeId, entscheidung, kommentar: kommentar ?? null }),
   });
 }

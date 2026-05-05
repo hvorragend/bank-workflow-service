@@ -204,7 +204,7 @@ export function ArchivePage() {
                   </div>
                   <span className={`badge badge-${i.status} sm:hidden justify-self-end`}>{i.status}</span>
                   <div className="hidden sm:block font-mono text-[11px] uppercase tracking-wider text-muted whitespace-nowrap">
-                    {humanize(i.aktuelle_stage)}
+                    {humanize(i.status)}
                   </div>
                   <span className={`badge badge-${i.status} hidden sm:inline-flex`}>{i.status}</span>
                 </Link>
