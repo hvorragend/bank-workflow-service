@@ -1,0 +1,22 @@
+# LDAPS-Anbindung. Kopieren nach config/ldap.toml (aus Repo via .gitignore ausgeschlossen)
+# und Werte an euer Active Directory / OpenLDAP anpassen.
+
+[ldap]
+server               = "ldaps://ad.example.org:636"
+bind_user_template   = "cn={username},ou=Users,dc=example,dc=org"
+search_base          = "ou=Users,dc=example,dc=org"
+group_search_base    = "ou=Groups,dc=example,dc=org"
+group_filter         = "(member={user_dn})"
+tls_required         = true
+ca_cert              = ""              # Pfad zu hauseigenem CA-Bundle, falls noetig
+timeout_seconds      = 5
+
+# Mapping LDAP-Gruppen-DN -> Anwendungsrollen
+[role_mapping]
+"CN=BWS-Admins,OU=Groups,DC=example,DC=org"           = ["Admin"]
+"CN=BWS-Vorstand,OU=Groups,DC=example,DC=org"         = ["Vorstand"]
+"CN=BWS-Compliance,OU=Groups,DC=example,DC=org"       = ["Compliance"]
+"CN=BWS-Risikomanagement,OU=Groups,DC=example,DC=org" = ["Risikomanagement"]
+"CN=BWS-Fachbereich-IT,OU=Groups,DC=example,DC=org"   = ["Fachbereichsleiter"]
+"CN=BWS-Bereichsleiter,OU=Groups,DC=example,DC=org"   = ["Bereichsleiter"]
+"CN=BWS-Sekretariat,OU=Groups,DC=example,DC=org"      = ["Vorstandssekretariat"]

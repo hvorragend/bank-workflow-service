@@ -40,15 +40,18 @@ def decide(
     instance: models.FormInstance,
     *,
     genehmiger: str,
-    rolle: str,
+    user_roles: list[str],
     entscheidung: str,
     kommentar: str | None,
 ) -> models.Approval:
-    """Apply an approval decision. Always writes an audit record, even on rejection."""
+    """Wendet eine Genehmigungs-Entscheidung an. Schreibt immer einen Audit-Eintrag.
+
+    Identitaet und Rollen kommen aus dem JWT — nicht aus dem Request-Body.
+    """
     if instance.status != "in_pruefung":
         raise WorkflowError(
-            f"Antrag ist nicht in Prüfung (aktuell: {instance.status}). "
-            "Genehmigung nicht möglich."
+            f"Antrag ist nicht in Pruefung (aktuell: {instance.status}). "
+            "Genehmigung nicht moeglich."
         )
 
     stages = instance.definition.workflow_stages
@@ -60,17 +63,19 @@ def decide(
         raise WorkflowError(f"Unbekannte aktuelle Stage: {instance.aktuelle_stage}.")
 
     expected_rolle = stages[current_idx]["rolle"]
-    if rolle != expected_rolle:
+    if expected_rolle not in user_roles:
         raise WorkflowError(
-            f"Falsche Rolle. Erwartet: '{expected_rolle}', erhalten: '{rolle}'."
+            f"Erforderliche Rolle nicht vorhanden. Benoetigt: '{expected_rolle}', "
+            f"vorhanden: {sorted(user_roles)}."
         )
 
-    # Audit record is written for every decision — never skipped.
+    # Audit-Eintrag wird IMMER geschrieben — auch bei Ablehnung. rolle = die zur
+    # Stage gehoerende Rolle, die der User aus seinem Rollen-Set erfuellt hat.
     approval = models.Approval(
         instance_id=instance.id,
         stage=instance.aktuelle_stage,
         genehmiger=genehmiger,
-        rolle=rolle,
+        rolle=expected_rolle,
         entscheidung=entscheidung,
         kommentar=kommentar,
     )

@@ -1,0 +1,54 @@
+{
+  "_doc": "Lokales User-Verzeichnis als Fallback, wenn LDAP nicht verfuegbar ist. Kopieren nach config/users.json (aus dem Repo via .gitignore ausgeschlossen). Hashes erzeugen mit: python -m app.auth.hash_password",
+  "users": [
+    {
+      "username": "admin",
+      "password_argon2": "ERSETZEN — Hash aus python -m app.auth.hash_password",
+      "name": "Lokaler Admin",
+      "email": "admin@local",
+      "roles": ["Admin"]
+    },
+    {
+      "username": "vorstand",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Vorstand",
+      "email": "vorstand@local",
+      "roles": ["Vorstand"]
+    },
+    {
+      "username": "compliance",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Compliance",
+      "email": "compliance@local",
+      "roles": ["Compliance"]
+    },
+    {
+      "username": "risikomgmt",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Risikomanagement",
+      "email": "risikomgmt@local",
+      "roles": ["Risikomanagement"]
+    },
+    {
+      "username": "fachbereich",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Fachbereichsleiter",
+      "email": "fachbereich@local",
+      "roles": ["Fachbereichsleiter"]
+    },
+    {
+      "username": "bereich",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Bereichsleiter",
+      "email": "bereich@local",
+      "roles": ["Bereichsleiter"]
+    },
+    {
+      "username": "sekretariat",
+      "password_argon2": "ERSETZEN",
+      "name": "Demo Vorstandssekretariat",
+      "email": "sekretariat@local",
+      "roles": ["Vorstandssekretariat"]
+    }
+  ]
+}

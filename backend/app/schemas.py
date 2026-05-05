@@ -44,7 +44,9 @@ class FormInstanceCreate(BaseModel):
         description="Concrete FormDefinition ID — pins this instance to a schema version.",
     )
     daten: dict[str, Any]
-    antragsteller: str
+    # Backwards-Compat: alte Clients duerfen weiter mitsenden — der Server ueberschreibt
+    # den Wert aber mit dem Username aus dem JWT.
+    antragsteller: str = ""
 
 
 class ApprovalOut(BaseModel):
@@ -84,7 +86,7 @@ class FormInstanceWithSchema(FormInstanceOut):
 # ---------- Approval action ----------
 
 class ApprovalAction(BaseModel):
-    genehmiger: str
-    rolle: str
+    """Genehmigungs-Entscheidung. `genehmiger` und `rolle` werden aus dem JWT-Token
+    gelesen, nicht mehr aus dem Body — die Identitaet ist nicht mehr selbst-deklariert."""
     entscheidung: Literal["approved", "rejected", "returned"]
     kommentar: str | None = None

@@ -1,34 +1,14 @@
-"""End-to-end smoke test that proves the versioning guarantee:
+"""End-to-End-Smoke-Test fuer die Versions-Garantie.
 
-- Create instance against v1 (which has 3 wesentlichkeitskriterien fields).
-- Activate v2 (which adds doraRelevanz as a 4th REQUIRED field).
-- Old v1 instance must remain valid against its pinned v1 schema.
-- New instance against v2 must require doraRelevanz.
+- v1-Antrag erstellen (3 Wesentlichkeitskriterien).
+- v2 aktivieren (4. Pflichtfeld doraRelevanz).
+- Alter v1-Antrag bleibt gegen sein gepinntes v1-Schema gueltig.
+- Neuer Antrag gegen v2 verlangt doraRelevanz.
 
-Run with:  pytest tests/
+Mit Commit 2 sind die Endpunkte auth-pflichtig — der admin_auth-Fixture liefert
+einen Token mit allen Rollen.
 """
 from __future__ import annotations
-
-import os
-import tempfile
-
-import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture(scope="module")
-def client():
-    # Isolated DB file for this test run
-    db_fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(db_fd)
-    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
-
-    # Import AFTER env var is set
-    from app.main import app  # noqa: WPS433
-    with TestClient(app) as c:
-        yield c
-
-    os.unlink(db_path)
 
 
 VALID_V1_DATA = {
@@ -38,7 +18,7 @@ VALID_V1_DATA = {
         "datum": "2026-05-05",
     },
     "vorhaben": {
-        "titel": "Einführung neuer Cloud-Storage",
+        "titel": "Einfuehrung neuer Cloud-Storage",
         "kategorie": "IT-System",
     },
     "wesentlichkeitskriterien": {
@@ -50,69 +30,56 @@ VALID_V1_DATA = {
         "wesentlich": True,
         "begruendung": (
             "Das System verarbeitet personenbezogene und kundenbezogene Daten "
-            "und unterliegt erhöhten aufsichtsrechtlichen Anforderungen."
+            "und unterliegt erhoehten aufsichtsrechtlichen Anforderungen."
         ),
     },
 }
 
 
 def test_seeded_definitions_present(client):
+    # GET /definitions ist oeffentlich lesbar — kein Token noetig.
     r = client.get("/definitions", params={"typ": "AT_8_2_Analyse"})
     assert r.status_code == 200
     versions = {d["version"]: d["status"] for d in r.json()}
     assert versions == {"1.0.0": "retired", "2.0.0": "active"}
 
 
-def test_create_instance_against_active_v2_requires_dora(client):
+def test_create_instance_against_active_v2_requires_dora(client, admin_auth):
     v2_id = _find_definition(client, "2.0.0")
-    # Without doraRelevanz → must fail
     r = client.post(
         "/instances",
-        json={
-            "form_definition_id": v2_id,
-            "daten": VALID_V1_DATA,  # missing doraRelevanz
-            "antragsteller": "test.user",
-        },
+        json={"form_definition_id": v2_id, "daten": VALID_V1_DATA},
+        headers=admin_auth,
     )
     assert r.status_code == 422
     assert "doraRelevanz" in r.json()["detail"]
 
 
-def test_old_v1_instance_stays_valid_after_v2_activation(client):
-    """The whole point: an instance created against v1 must keep working,
-    even though v2 introduces new required fields.
-    """
-    # Force-activate v1 temporarily so we can create against it
+def test_old_v1_instance_stays_valid_after_v2_activation(client, admin_auth):
+    """Der Kerntest: ein v1-Antrag bleibt nutzbar, auch wenn v2 inzwischen aktiv ist."""
     v1_id = _find_definition(client, "1.0.0")
     v2_id = _find_definition(client, "2.0.0")
-    _set_status(client, v1_id, target="active", deactivate_id=v2_id)
+    _set_status(client, admin_auth, v1_id, deactivate_id=v2_id)
 
-    # Create v1 instance (no doraRelevanz needed)
     r = client.post(
         "/instances",
-        json={
-            "form_definition_id": v1_id,
-            "daten": VALID_V1_DATA,
-            "antragsteller": "test.user",
-        },
+        json={"form_definition_id": v1_id, "daten": VALID_V1_DATA},
+        headers=admin_auth,
     )
     assert r.status_code == 201, r.text
     instance_id = r.json()["id"]
 
-    # Re-activate v2 (retires v1 again)
-    _set_status(client, v2_id, target="active", deactivate_id=v1_id)
+    _set_status(client, admin_auth, v2_id, deactivate_id=v1_id)
 
-    # Old v1 instance: still readable, still valid against its pinned v1 schema
-    r = client.get(f"/instances/{instance_id}")
+    r = client.get(f"/instances/{instance_id}", headers=admin_auth)
     assert r.status_code == 200
     body = r.json()
     assert body["schema_version"] == "AT_8_2_Analyse/1.0.0"
-    # And its schema does NOT contain the v2 doraRelevanz field
     krit = body["json_schema"]["properties"]["wesentlichkeitskriterien"]["properties"]
     assert "doraRelevanz" not in krit
 
 
-def test_full_approval_chain(client):
+def test_full_approval_chain(client, admin_auth):
     v2_id = _find_definition(client, "2.0.0")
     daten = {**VALID_V1_DATA}
     daten["wesentlichkeitskriterien"] = {
@@ -122,30 +89,26 @@ def test_full_approval_chain(client):
 
     r = client.post(
         "/instances",
-        json={"form_definition_id": v2_id, "daten": daten, "antragsteller": "carsten"},
+        json={"form_definition_id": v2_id, "daten": daten},
+        headers=admin_auth,
     )
     assert r.status_code == 201
     iid = r.json()["id"]
 
-    assert client.post(f"/instances/{iid}/submit").json()["aktuelle_stage"] == "fachbereich"
+    assert client.post(
+        f"/instances/{iid}/submit", headers=admin_auth
+    ).json()["aktuelle_stage"] == "fachbereich"
 
-    for stage_name, rolle in [
-        ("fachbereich", "Fachbereichsleiter"),
-        ("risikomgmt",  "Risikomanagement"),
-        ("vorstand",    "Vorstand"),
-    ]:
+    # Admin hat alle Rollen — kann durch alle Stages durch genehmigen.
+    for stage_name in ["fachbereich", "risikomgmt", "vorstand"]:
         r = client.post(
             f"/instances/{iid}/decide",
-            json={
-                "genehmiger": f"user_{stage_name}",
-                "rolle": rolle,
-                "entscheidung": "approved",
-                "kommentar": f"OK von {rolle}",
-            },
+            json={"entscheidung": "approved", "kommentar": f"OK in {stage_name}"},
+            headers=admin_auth,
         )
         assert r.status_code == 200, r.text
 
-    final = client.get(f"/instances/{iid}").json()
+    final = client.get(f"/instances/{iid}", headers=admin_auth).json()
     assert final["status"] == "genehmigt"
     assert len(final["approvals"]) == 3
     assert all(a["entscheidung"] == "approved" for a in final["approvals"])
@@ -158,8 +121,8 @@ def _find_definition(client, version: str) -> str:
     return next(d["id"] for d in r.json() if d["version"] == version)
 
 
-def _set_status(client, definition_id: str, *, target: str, deactivate_id: str | None) -> None:
-    """Test-only helper: directly toggles status via the DB layer."""
+def _set_status(client, admin_auth, definition_id: str, *, deactivate_id: str | None) -> None:
+    """Test-Hilfsfunktion: setzt eine Definition auf 'active' und deaktiviert eine andere."""
     from app.database import SessionLocal
     from app.models import FormDefinition
 
@@ -167,8 +130,9 @@ def _set_status(client, definition_id: str, *, target: str, deactivate_id: str |
         if deactivate_id:
             other = db.get(FormDefinition, deactivate_id)
             if other:
-                other.status = "draft"  # so we can re-activate cleanly
+                other.status = "draft"
         d = db.get(FormDefinition, definition_id)
         d.status = "draft"
         db.commit()
-    client.post(f"/definitions/{definition_id}/activate")
+    r = client.post(f"/definitions/{definition_id}/activate", headers=admin_auth)
+    assert r.status_code == 200, r.text

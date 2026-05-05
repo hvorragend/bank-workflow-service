@@ -35,6 +35,36 @@ bank-workflow-service/
 └── .gitattributes              Cross-Platform-Line-Endings
 ```
 
+## Authentifizierung
+
+Alle Endpunkte unter `/instances` sowie schreibende `/definitions`-Endpunkte sind
+seit Commit 2 auth-pflichtig. Es gibt zwei Modi, gesteuert über `AUTH_MODE`:
+
+- `local` — User kommen aus `config/users.json` (argon2id-Hashes)
+- `ldap` — Bind gegen LDAPS, Rollen aus Gruppen-DN-Mapping in `config/ldap.toml`
+- `both` — LDAP zuerst, Fallback auf Local nur wenn LDAP unerreichbar oder User dort
+  unbekannt. **Nicht** bei „LDAP kennt User, Passwort falsch" — das wäre ein
+  Credential-Stuffing-Risiko.
+
+**Pflicht-Umgebungsvariablen:**
+
+| Variable | Bedeutung |
+|---|---|
+| `JWT_SECRET` | Mindestens 32 Bytes Zufallswert, z. B. `openssl rand -hex 32` |
+| `AUTH_MODE` | `local`, `ldap` oder `both` (Default: `local`) |
+
+**Lokaler Fallback einrichten:**
+
+```bash
+cp config/users.example.json config/users.json
+# Hash für jedes User-Passwort erzeugen:
+python -m app.auth.hash_password
+# Den ausgegebenen Hash in config/users.json beim entsprechenden User eintragen.
+```
+
+`config/users.json` und `config/ldap.toml` sind über `.gitignore` ausgeschlossen — sie
+enthalten Geheimnisse und gehören nicht ins Repo.
+
 ## Quickstart
 
 Drei Wege, je nach Vorliebe.
@@ -50,6 +80,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+export JWT_SECRET=$(openssl rand -hex 32)
 uvicorn app.main:app --reload
 ```
 
@@ -60,6 +91,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate.bat
 pip install -e ".[dev]"
+set JWT_SECRET=replace-with-openssl-rand-hex-32
 uvicorn app.main:app --reload
 ```
 
@@ -70,6 +102,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
+$env:JWT_SECRET = "replace-with-openssl-rand-hex-32"
 uvicorn app.main:app --reload
 ```
 

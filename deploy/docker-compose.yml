@@ -36,6 +36,14 @@ services:
     container_name: bws-backend
     environment:
       DATABASE_URL: postgresql+psycopg://${PG_USER:-bws}:${PG_PASSWORD}@postgres:5432/${PG_DB:-bws}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss in deploy/.env gesetzt sein (openssl rand -hex 32)}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      USERS_CONFIG_PATH: ${USERS_CONFIG_PATH:-config/users.json}
+      LDAP_CONFIG_PATH: ${LDAP_CONFIG_PATH:-config/ldap.toml}
+    volumes:
+      # Lokale Auth-Konfiguration in den Container einhaengen, sodass das Image
+      # nicht neu gebaut werden muss, nur weil ein User dazukommt.
+      - ../config:/app/config:ro
     depends_on:
       postgres:
         condition: service_healthy

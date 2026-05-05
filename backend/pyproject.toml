@@ -11,11 +11,17 @@ dependencies = [
   "uvicorn[standard]>=0.27.0",
   "sqlalchemy>=2.0.25",
   "pydantic>=2.5.0",
+  "pydantic-settings>=2.1.0",
   "jsonschema>=4.21.0",
   "python-statemachine>=2.1.2",
   # Datenbank — Postgres ist Default in Produktion, SQLite bleibt fuer Tests/Quickstart erlaubt
   "psycopg[binary]>=3.1.18",
   "alembic>=1.13.0",
+  # Auth (Phase 1 / Commit 2)
+  "ldap3>=2.9.1",
+  "argon2-cffi>=23.1.0",
+  "pyjwt>=2.8.0",
+  "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]

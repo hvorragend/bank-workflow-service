@@ -1,4 +1,9 @@
-"""Endpoints for FormDefinitions (the versioned templates)."""
+"""Endpoints for FormDefinitions (the versioned templates).
+
+Mit Commit 2: Schreibvorgaenge (POST, activate) erfordern die Rolle 'Admin'.
+Die GET-Endpunkte bleiben oeffentlich lesbar — sie liefern keine Antragsdaten,
+nur die Maskendefinitionen.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..auth.dependencies import require_role
+from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 
 router = APIRouter(prefix="/definitions", tags=["definitions"])
@@ -15,6 +22,7 @@ router = APIRouter(prefix="/definitions", tags=["definitions"])
 def create_definition(
     payload: schemas.FormDefinitionCreate,
     db: Session = Depends(get_db),
+    _admin: AuthenticatedUser = Depends(require_role("Admin")),
 ) -> models.FormDefinition:
     """Create a new form definition (status starts as 'draft')."""
     existing = db.scalar(
@@ -58,7 +66,11 @@ def get_definition(definition_id: str, db: Session = Depends(get_db)) -> models.
 
 
 @router.post("/{definition_id}/activate", response_model=schemas.FormDefinitionOut)
-def activate(definition_id: str, db: Session = Depends(get_db)) -> models.FormDefinition:
+def activate(
+    definition_id: str,
+    db: Session = Depends(get_db),
+    _admin: AuthenticatedUser = Depends(require_role("Admin")),
+) -> models.FormDefinition:
     """Activate a draft definition. Retires older active versions of the same typ."""
     d = db.get(models.FormDefinition, definition_id)
     if not d:

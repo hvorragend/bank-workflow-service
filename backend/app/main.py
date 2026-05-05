@@ -21,9 +21,11 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import select, text
 
 from . import models
+from .auth import router as auth_router
 from .database import Base, SessionLocal, engine
 from .routers import definitions, instances
 
@@ -262,7 +264,7 @@ app = FastAPI(
         "Jede FormInstance ist hart an die Schema-Version gebunden, die zum "
         "Erstellungszeitpunkt aktiv war."
     ),
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -274,6 +276,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate-Limiter aus auth.rate_limit teilen — der Decorator auf /auth/login greift dann.
+from .auth.rate_limit import limiter  # noqa: E402
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_exceeded_handler)
+
+app.include_router(auth_router.router)
 app.include_router(definitions.router)
 app.include_router(instances.router)
 
@@ -286,6 +295,25 @@ def root() -> dict:
         "legacy_demo": "/legacy",
         "status": "ok",
     }
+
+
+@app.get("/health", tags=["meta"])
+def health() -> dict:
+    """Liveness-Probe: nur Prozess-/HTTP-Erreichbarkeit, kein Backing-Service-Check.
+    Wird vom Container/Reverse-Proxy in kurzen Intervallen aufgerufen."""
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["meta"])
+def ready() -> dict:
+    """Readiness-Probe: prueft, ob die DB ansprechbar ist. Wird seltener aufgerufen."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        from fastapi import HTTPException, status as st
+        raise HTTPException(status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}")
+    return {"status": "ready"}
 
 
 @app.get("/legacy", include_in_schema=False)
