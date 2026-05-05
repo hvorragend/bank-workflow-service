@@ -19,19 +19,24 @@ Jeder ausgefüllte Antrag (`FormInstance`) wird **hart an eine konkrete Schema-V
 ```
 bank-workflow-service/
 ├── backend/                    FastAPI-Service
-│   ├── app/                    Code (Models, Routers, Workflow-Engine)
+│   ├── app/                    Code (Models, Routers, Workflow-Engine, Auth)
 │   ├── schemas/                Beispiel-JSON-Schemas (AT 8.2 v1/v2, Vorstandsbeschluss v1)
 │   ├── tests/                  Pytest-Tests
-│   ├── legacy_demo/            Vue-3-Single-File-Demo, erreichbar unter /legacy
+│   ├── legacy_demo/            Vue-3-Single-File-Demo (read-only, /legacy)
 │   ├── alembic/                DB-Migrationen
-│   ├── alembic.ini
 │   ├── pyproject.toml          Python-Dependencies
 │   └── Dockerfile
-├── deploy/                     Container-Stack (Postgres + Backend, später Traefik + web)
+├── web/                        React-Frontend (Vite + TypeScript + Tailwind + shadcn-Stil)
+│   ├── src/                    Pages, Components, Auth, API-Client
+│   ├── package.json            JS-Dependencies (verwaltet via pnpm)
+│   ├── tailwind.config.ts      Editorial-Design-Tokens
+│   ├── nginx.conf              Reverse-Proxy zur Backend-API
+│   └── Dockerfile
+├── deploy/                     Container-Stack (Postgres + Backend + web)
 │   ├── docker-compose.dev.yml  nur Postgres + MailHog für lokale Entwicklung
 │   ├── docker-compose.yml      Komplettstack
 │   └── README.md
-├── web/                        React-Frontend (kommt in Commit 3)
+├── config/                     Auth-Konfiguration (per .gitignore ausgeschlossen)
 └── .gitattributes              Cross-Platform-Line-Endings
 ```
 
@@ -127,17 +132,44 @@ uvicorn app.main:app --reload
 ### C — Komplettstack im Container
 
 ```bash
-cp deploy/.env.example deploy/.env       # Passwort eintragen
+cp deploy/.env.example deploy/.env       # Passwort + JWT_SECRET eintragen
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-Dann: <http://localhost:8000>.
+Dann:
+- **React-Frontend**: <http://localhost:8080>
+- **Backend-API**: intern `http://backend:8000`, von außen über den Nginx-Proxy
+- **OpenAPI-Docs**: <http://localhost:8080/docs>
+- **Vue-Legacy-Demo**: <http://localhost:8080/legacy> (Lese-Modus, kein Login möglich)
+
+### D — Frontend-Entwicklung (Vite-Dev-Server gegen lokales Backend)
+
+Voraussetzung: Node 20 oder neuer + pnpm (via `corepack enable`).
+
+```bash
+# Backend-Terminal
+cd backend
+export JWT_SECRET=$(openssl rand -hex 32)
+uvicorn app.main:app --reload          # Port 8000
+
+# Frontend-Terminal
+cd web
+pnpm install
+pnpm dev                                # Port 5173, proxy zu Backend
+```
+
+Dann: <http://localhost:5173>. Vite-HMR läuft, Änderungen am React-Code erscheinen sofort.
 
 ## Tests
 
 ```bash
+# Backend (19 Tests: Versionierung + Auth)
 cd backend
-pytest                       # nutzt SQLite-Tempfile, läuft ohne weitere Einrichtung
+pytest
+
+# Frontend (10 Tests: Schema-Renderer-Helfer)
+cd web
+pnpm test
 ```
 
 ## Datenbank-Migrationen (Alembic)

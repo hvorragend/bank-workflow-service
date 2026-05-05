@@ -47,8 +47,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: bws-web
+    depends_on:
+      - backend
     ports:
-      - "8000:8000"
+      - "8080:8080"
     restart: unless-stopped
 
 volumes:

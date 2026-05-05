@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Globale Editorial-Defaults ---------- */
+@layer base {
+  html, body, #root { height: 100%; }
+  html { background: theme(colors.bg); color: theme(colors.ink); }
+  body {
+    font-family: theme(fontFamily.body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Display-Variante (Fraunces) — opsz fuer ruhige Ueberschriften */
+  .font-display { font-variation-settings: "opsz" 144; }
+}
+
+/* ---------- Wiederverwendbare Editorial-Atome ---------- */
+@layer components {
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.15em] text-quiet;
+  }
+  .label-mono {
+    @apply font-mono text-[11px] uppercase tracking-[0.08em] text-quiet;
+  }
+  .paper {
+    @apply bg-paper border border-rule p-8 sm:p-10;
+  }
+  .paper + .paper { @apply mt-6; }
+
+  .badge {
+    @apply inline-block px-2.5 py-[3px] font-mono text-[11px] tracking-wider uppercase rounded-sm whitespace-nowrap;
+  }
+  .badge-active,    .badge-genehmigt   { @apply bg-ok-soft text-ok; }
+  .badge-draft,     .badge-in_pruefung { @apply bg-warn-soft text-warn; }
+  .badge-retired,   .badge-entwurf     { @apply bg-neutral-soft text-neutral; }
+  .badge-abgelehnt, .badge-zurueckgewiesen { @apply bg-bad-soft text-bad; }
+
+  .btn {
+    @apply inline-flex items-center justify-center px-5 py-2.5 font-body text-[13px] font-medium tracking-wide
+           border border-ink bg-ink text-paper cursor-pointer transition
+           hover:bg-accent hover:border-accent
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-ghost  { @apply bg-transparent text-ink hover:bg-ink hover:text-paper; }
+  .btn-ok     { @apply bg-ok border-ok hover:bg-[hsl(135_35%_22%)] hover:border-[hsl(135_35%_22%)]; }
+  .btn-warn   { @apply bg-transparent text-warn border-warn hover:bg-warn hover:text-paper; }
+  .btn-bad    { @apply bg-transparent text-bad border-bad hover:bg-bad hover:text-paper; }
+
+  .input {
+    @apply w-full px-3 py-2.5 font-body text-sm border border-rule bg-paper text-ink
+           focus:outline-none focus:border-accent;
+  }
+  textarea.input { @apply resize-y min-h-[96px]; }
+}
