@@ -9,8 +9,8 @@
       "type": "object",
       "required": ["name", "abteilung", "datum"],
       "properties": {
-        "name":      { "type": "string", "minLength": 1 },
-        "abteilung": { "type": "string", "minLength": 1 },
+        "name":      { "type": "string" },
+        "abteilung": { "type": "string" },
         "datum":     { "type": "string", "format": "date" }
       }
     },
@@ -18,7 +18,7 @@
       "type": "object",
       "required": ["titel", "kategorie"],
       "properties": {
-        "titel":     { "type": "string", "minLength": 5 },
+        "titel":     { "type": "string" },
         "kategorie": {
           "type": "string",
           "enum": ["Prozess", "IT-System", "Produkt", "Organisation", "Outsourcing"]
@@ -39,7 +39,7 @@
       "required": ["wesentlich", "begruendung"],
       "properties": {
         "wesentlich":  { "type": "boolean" },
-        "begruendung": { "type": "string", "minLength": 50 }
+        "begruendung": { "type": "string" }
       }
     }
   }
