@@ -1,7 +1,8 @@
 """SLA-Eskalation: zwei Stufen, Idempotenz, Stage-Wechsel-Reset.
 
 Wir manipulieren stage_eingetreten_am direkt in der DB (anstatt zu warten),
-damit der Scanner SLA-Verstoesse erkennt.
+damit der Scanner SLA-Verstoesse erkennt. SMTP- und Eskalations-Konfiguration
+liegen seit dem Admin-Panel in der DB — die Fixtures setzen sie dort.
 """
 from __future__ import annotations
 
@@ -10,29 +11,42 @@ from unittest.mock import patch
 
 import pytest
 
-from .conftest import TEST_PASSWORD, login_as
-
 
 @pytest.fixture
-def enable_notifications_and_escalation(monkeypatch):
-    monkeypatch.setenv("NOTIFICATIONS_ENABLED", "true")
-    monkeypatch.setenv("ESCALATION_ENABLED", "true")
-    monkeypatch.setenv("ESCALATION_DEFAULT_SLA_DAYS", "10")
-    monkeypatch.setenv("MAIL_FROM", "noreply@bws.test")
-    from app.notifications.config import reset_notification_settings_cache
-    from app.escalation.config import reset_escalation_settings_cache
-    reset_notification_settings_cache()
-    reset_escalation_settings_cache()
+def enable_notifications_and_escalation():
+    from app import models
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        smtp = db.get(models.SmtpConfig, 1) or models.SmtpConfig(id=1)
+        if not db.get(models.SmtpConfig, 1):
+            db.add(smtp)
+        smtp.enabled = True
+        smtp.mail_from = "noreply@bws.test"
+
+        esc = db.get(models.EscalationConfig, 1) or models.EscalationConfig(id=1)
+        if not db.get(models.EscalationConfig, 1):
+            db.add(esc)
+        esc.enabled = True
+        esc.default_sla_days = 10
+        esc.interval_minutes = 60
+        db.commit()
     yield
-    reset_notification_settings_cache()
-    reset_escalation_settings_cache()
+    with SessionLocal() as db:
+        smtp = db.get(models.SmtpConfig, 1)
+        if smtp:
+            smtp.enabled = False
+        esc = db.get(models.EscalationConfig, 1)
+        if esc:
+            esc.enabled = False
+        db.commit()
 
 
 @pytest.fixture
 def captured_mails():
     captured: list[dict] = []
 
-    def fake(*, to, subject, body):
+    def fake(*, to, subject, body, db=None):
         captured.append({"to": list(to), "subject": subject, "body": body})
 
     with patch("app.notifications.smtp.send_email", new=fake):
@@ -42,7 +56,6 @@ def captured_mails():
 
 
 def _create_in_review_instance(client, admin_auth) -> str:
-    """Antrag anlegen und einreichen, sodass er in_pruefung @ erste Stage steht."""
     defs = client.get("/definitions").json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
@@ -64,7 +77,6 @@ def _create_in_review_instance(client, admin_auth) -> str:
 
 
 def _backdate_stage(instance_id: str, days_ago: float) -> None:
-    """Setzt stage_eingetreten_am zurueck, ohne den Scanner zu durchlaufen."""
     from app.database import SessionLocal
     from app.models import FormInstance
     with SessionLocal() as db:
@@ -77,24 +89,20 @@ def _backdate_stage(instance_id: str, days_ago: float) -> None:
 
 def test_no_action_when_below_half_sla(client, admin_auth, enable_notifications_and_escalation, captured_mails):
     iid = _create_in_review_instance(client, admin_auth)
-    _backdate_stage(iid, days_ago=1)  # SLA = 10, halb = 5 — 1 Tag liegt deutlich darunter
+    _backdate_stage(iid, days_ago=1)
     captured_mails.clear()
-
     from app.escalation.scanner import scan_once
     counts = scan_once()
-
     assert counts["erinnerungen"] == 0
     assert counts["eskalationen"] == 0
 
 
 def test_erinnerung_at_half_sla(client, admin_auth, enable_notifications_and_escalation, captured_mails):
     iid = _create_in_review_instance(client, admin_auth)
-    _backdate_stage(iid, days_ago=6)  # SLA = 10, halb = 5 — 6 Tage > 5
+    _backdate_stage(iid, days_ago=6)
     captured_mails.clear()
-
     from app.escalation.scanner import scan_once
     counts = scan_once()
-
     assert counts["erinnerungen"] >= 1
     assert any("Erinnerung" in m["subject"] for m in captured_mails), [m["subject"] for m in captured_mails]
 
@@ -105,12 +113,10 @@ def test_erinnerung_at_half_sla(client, admin_auth, enable_notifications_and_esc
 )
 def test_eskalation_after_sla_breach(client, admin_auth, enable_notifications_and_escalation, captured_mails):
     iid = _create_in_review_instance(client, admin_auth)
-    _backdate_stage(iid, days_ago=11)  # SLA = 10 — ueberschritten
+    _backdate_stage(iid, days_ago=11)
     captured_mails.clear()
-
     from app.escalation.scanner import scan_once
     counts = scan_once()
-
     assert counts["eskalationen"] >= 1
     assert any("ESKALATION" in m["subject"] for m in captured_mails), [m["subject"] for m in captured_mails]
 
@@ -119,27 +125,20 @@ def test_idempotenz_zweiter_scan_macht_nichts(client, admin_auth, enable_notific
     iid = _create_in_review_instance(client, admin_auth)
     _backdate_stage(iid, days_ago=11)
     captured_mails.clear()
-
     from app.escalation.scanner import scan_once
     first = scan_once()
     second = scan_once()
-
     assert first["eskalationen"] >= 1
-    assert second["eskalationen"] == 0  # nicht erneut eskalieren
+    assert second["eskalationen"] == 0
 
 
 def test_stage_wechsel_setzt_sla_zurueck(client, admin_auth, enable_notifications_and_escalation, captured_mails):
     iid = _create_in_review_instance(client, admin_auth)
     _backdate_stage(iid, days_ago=11)
-
     from app.escalation.scanner import scan_once
-    scan_once()  # eskaliert
-
-    # Admin entscheidet: approved -> naechste Stage. SLA muss zuruecksetzen.
+    scan_once()
     captured_mails.clear()
     client.post(f"/instances/{iid}/decide", json={"entscheidung": "approved"}, headers=admin_auth)
-
-    # Direkt nach Stage-Wechsel keine Mahnung
     counts = scan_once()
     assert counts["erinnerungen"] == 0
     assert counts["eskalationen"] == 0
@@ -150,18 +149,23 @@ def test_audit_log_records_sla_actions(client, admin_auth, enable_notifications_
     _backdate_stage(iid, days_ago=11)
     from app.escalation.scanner import scan_once
     scan_once()
-
     r = client.get("/admin/audit?kategorie=instance", headers=admin_auth)
     actions = {e["action"] for e in r.json()}
     assert "sla.eskalation" in actions
 
 
-def test_disabled_no_scheduler(monkeypatch):
-    """Bei ESCALATION_ENABLED=False darf der Scheduler nicht starten."""
-    monkeypatch.setenv("ESCALATION_ENABLED", "false")
+def test_disabled_no_scheduler():
+    """Bei DB-config.enabled=False darf der Scheduler nicht starten."""
+    from app import models
+    from app.database import SessionLocal
     from app.escalation import scheduler
-    from app.escalation.config import reset_escalation_settings_cache
-    reset_escalation_settings_cache()
-    scheduler.stop()  # idempotent
-    scheduler.start()
+
+    with SessionLocal() as db:
+        cfg = db.get(models.EscalationConfig, 1) or models.EscalationConfig(id=1)
+        if not db.get(models.EscalationConfig, 1):
+            db.add(cfg)
+        cfg.enabled = False
+        db.commit()
+    scheduler.stop()
+    scheduler.start_from_db()
     assert scheduler._scheduler is None

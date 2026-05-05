@@ -16,8 +16,7 @@ const baseTabs: Tab[] = [
 ];
 
 const adminTabs: Tab[] = [
-  { to: "/admin",        label: "Admin",     end: true },
-  { to: "/admin/audit",  label: "Audit" },
+  { to: "/admin",        label: "Admin" },
 ];
 
 export function Layout() {
@@ -25,7 +24,7 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = state.status === "authenticated" ? state.user : null;
-  const isAdmin = !!user?.roles.includes("Admin");
+  const isAdmin = !!user?.permissions?.some((p) => p.startsWith("admin."));
   const tabs = isAdmin ? [...baseTabs, ...adminTabs] : baseTabs;
 
   const [mobileOpen, setMobileOpen] = useState(false);

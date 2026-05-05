@@ -26,6 +26,7 @@ deploy/.env
 config/users.json
 config/ldap.toml
 config/role_emails.toml
+config/emergency_users.json
 
 # Frontend (kommt mit Commit 3)
 node_modules/

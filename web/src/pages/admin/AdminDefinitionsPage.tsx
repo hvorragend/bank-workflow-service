@@ -49,7 +49,7 @@ export function AdminDefinitionsPage() {
             Version desselben Typs — die Versions-Garantie bleibt erhalten.
           </p>
         </div>
-        <Link to="/admin/upload" className="btn whitespace-nowrap self-start">
+        <Link to="/admin/definitionen/upload" className="btn whitespace-nowrap self-start">
           <Upload size={14} /> Neue Version hochladen
         </Link>
       </header>
@@ -178,7 +178,7 @@ function DiffLink({ current, all }: { current: FormDefinition; all: FormDefiniti
   if (!previous) return null;
   return (
     <Link
-      to={`/admin/diff/${previous.id}/${current.id}`}
+      to={`/admin/definitionen/diff/${previous.id}/${current.id}`}
       className="btn btn-ghost text-[12px] px-3 py-1.5"
     >
       Diff zu {previous.version} <ArrowRight size={12} />

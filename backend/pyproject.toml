@@ -26,6 +26,8 @@ dependencies = [
   "python-multipart>=0.0.9",
   # SLA-Eskalation (Phase 3 / Commit 8)
   "apscheduler>=3.10.4",
+  # Verschluesselung sensibler Config-Werte in der DB (Phase 4 / Admin-Panel)
+  "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]

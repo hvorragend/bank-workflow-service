@@ -1,27 +1,38 @@
-"""Auth-Endpunkte: /auth/login, /auth/logout, /auth/refresh, /auth/me."""
+"""Auth-Endpunkte: /auth/login, /auth/logout, /auth/refresh, /auth/me.
+
+Auth-Modus (local | ldap | both) kommt aus app_settings (siehe
+config_service.auth_mode). Die Login-Pipeline reichert den AuthenticatedUser
+mit den Permissions aus den DB-Rollen an, bevor das JWT ausgestellt wird.
+"""
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from .. import audit as audit_db
-from ..database import SessionLocal
+from .. import models
+from ..config_service.auth_mode import get_auth_mode
+from ..config_service.ldap_settings import get_ldap_settings
+from ..database import SessionLocal, get_db
 from .config import get_settings
 from .dependencies import get_current_user
 from .jwt_handler import decode_token, issue_access_token, issue_refresh_token
-from .rate_limit import limiter
 from .ldap_bind import (
     LdapBadCredentials,
     LdapServerUnreachable,
     LdapUserUnknown,
     authenticate_ldap,
 )
-from .local import LocalAuthError, authenticate_local, is_local_user
+from .ldap_sync import upsert_ldap_user_after_login
+from .local import LocalAuthError, authenticate_local, is_local_user, resolve_user_permissions
+from .rate_limit import limiter
 from .schemas import AuthenticatedUser, LoginRequest, MeResponse, TokenResponse
 
 log = logging.getLogger(__name__)
@@ -48,8 +59,6 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 def _audit(action: str, username: str, source: str, ip: str, success: bool, reason: str = "") -> None:
-    """Strukturierter Auth-Audit-Eintrag — schreibt parallel in Container-Log
-    und in audit_events-Tabelle, damit Admin-UI und Container-Sammler unabhaengig sind."""
     audit_log = logging.getLogger("auth.audit")
     audit_log.info(
         "auth_event",
@@ -62,65 +71,94 @@ def _audit(action: str, username: str, source: str, ip: str, success: bool, reas
             "auth_reason": reason,
         },
     )
-    # Persistierung in DB; eigene Session, weil wir aus Routen-Handlern und
-    # nicht-handler-Kontexten gleichermassen aufgerufen werden.
     try:
         with SessionLocal() as db:
+            if action == "login" and source == "emergency" and success:
+                action_str = "auth.login.emergency"
+            else:
+                action_str = (
+                    f"login.{'success' if success else 'failure'}"
+                    if action == "login" else action
+                )
             audit_db.write_event(
                 db,
                 kategorie="auth",
-                action=f"login.{'success' if success else 'failure'}" if action == "login" else action,
+                action=action_str,
                 akteur=username if username and username != "?" else None,
                 ip=ip,
-                payload={"source": source, "reason": reason} if not success or action != "login" else {"source": source},
+                payload={"source": source, "reason": reason}
+                        if not success or action != "login" else {"source": source},
             )
-    except Exception as e:  # pragma: no cover  — Audit darf den Login nicht blockieren
+    except Exception as e:  # pragma: no cover
         log.warning("Audit-DB-Persistierung fehlgeschlagen: %s", e)
 
 
-def _try_authenticate(username: str, password: str) -> AuthenticatedUser:
-    """Implementiert das AUTH_MODE-Verhalten (local | ldap | both).
-
-    Bei 'both': erst LDAP, Fallback auf Local NUR wenn Server unerreichbar
-    oder User dort unbekannt — niemals bei „Passwort falsch" gegen LDAP.
-    """
-    s = get_settings()
-    mode = s.auth_mode
+def _try_authenticate(db: Session, username: str, password: str) -> AuthenticatedUser:
+    """Implementiert das AUTH_MODE-Verhalten (local | ldap | both)."""
+    mode = get_auth_mode(db)
 
     if mode == "local":
-        return authenticate_local(username, password)
+        return authenticate_local(db, username, password)
+
+    cfg = get_ldap_settings(db)
 
     if mode == "ldap":
         try:
-            return authenticate_ldap(username, password)
+            user = authenticate_ldap(cfg, username, password)
         except LdapBadCredentials as e:
             raise LocalAuthError(str(e)) from e
         except (LdapServerUnreachable, LdapUserUnknown) as e:
             raise LocalAuthError(f"LDAP-Login nicht moeglich: {e}") from e
+        return _enrich_after_ldap(db, user)
 
     # mode == "both"
     try:
-        return authenticate_ldap(username, password)
+        user = authenticate_ldap(cfg, username, password)
     except LdapBadCredentials as e:
-        # Wichtig: KEIN Fallback. Sonst Credential-Stuffing-Risiko.
         raise LocalAuthError(str(e)) from e
     except (LdapServerUnreachable, LdapUserUnknown) as ldap_err:
         log.info("LDAP nicht verfuegbar, Fallback auf Local: %s", ldap_err)
-        if is_local_user(username):
-            return authenticate_local(username, password)
+        if is_local_user(db, username):
+            return authenticate_local(db, username, password)
         raise LocalAuthError("User unbekannt (LDAP und Local).") from ldap_err
+    return _enrich_after_ldap(db, user)
+
+
+def _enrich_after_ldap(db: Session, user: AuthenticatedUser) -> AuthenticatedUser:
+    """Persistiert den frisch-gebundenen LDAP-User in der DB (idempotent) und
+    loest Permissions aus den Rollen auf."""
+    upsert_ldap_user_after_login(
+        db,
+        username=user.username,
+        display_name=user.name,
+        email=user.email,
+        user_dn=getattr(user, "ldap_dn", "") or "",
+        role_names=user.roles,
+    )
+    user_row = db.scalar(select(models.User).where(models.User.username == user.username))
+    if user_row:
+        roles, perms = resolve_user_permissions(db, user_row)
+        user.roles = roles
+        user.permissions = perms
+        user_row.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+    return user
 
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-def login(payload: LoginRequest, request: Request, response: Response) -> TokenResponse:
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
     """Login mit Username/Passwort. Rate-Limit: 5 Versuche pro Minute pro IP."""
     ip = get_remote_address(request)
     try:
-        user = _try_authenticate(payload.username, payload.password)
+        user = _try_authenticate(db, payload.username, payload.password)
     except LocalAuthError as e:
         _audit("login", payload.username, "?", ip, success=False, reason=str(e))
-        # Bewusst generische Fehlermeldung — keine Hinweise, ob User existiert.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Anmeldedaten ungueltig.",
@@ -146,7 +184,6 @@ def refresh(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Keine aktive Session."
         )
-
     try:
         user, _ = decode_token(bws_refresh, expected_type="refresh")
     except jwt.PyJWTError as e:
@@ -175,17 +212,14 @@ def logout(request: Request, response: Response) -> dict[str, str]:
 @router.get("/me", response_model=MeResponse)
 def me(user: AuthenticatedUser = Depends(get_current_user)) -> MeResponse:
     """Aktuell eingeloggte Identitaet plus Token-Ablauf."""
-    # Wir kennen exp aus dem Token via decode_token; hier rekonstruieren wir es.
-    # Alternativ koennte get_current_user exp mitgeben — pragmatisch lassen
-    # wir die Lifetime auf Settings basieren, das ist fuer UX gut genug.
     s = get_settings()
-    from datetime import timedelta, timezone
     exp = datetime.now(timezone.utc) + timedelta(minutes=s.jwt_access_lifetime_minutes)
     return MeResponse(
         username=user.username,
         name=user.name,
         email=user.email,
         roles=user.roles,
+        permissions=user.permissions,
         auth_source=user.auth_source,
         token_expires_at=exp,
     )

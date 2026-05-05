@@ -1,0 +1,12 @@
+{
+  "_doc": "Notfall-User (Break-Glass-Admin). Wird vom Bank Workflow Service NUR genutzt, wenn (a) die DB unerreichbar ist oder (b) kein aktiver Admin in der DB existiert. Kopieren nach config/emergency_users.json (aus dem Repo via .gitignore ausgeschlossen). Hashes erzeugen mit: python -m app.auth.hash_password. Halten Sie die Datei klein (1-2 Eintraege) und aufbewahrt wie ein gedrucktes Notfall-Passwort. Jeder Login ueber diese Datei erscheint im Audit-Log als 'auth.login.emergency'.",
+  "users": [
+    {
+      "username": "notfall",
+      "password_argon2": "ERSETZEN — Hash aus python -m app.auth.hash_password",
+      "name": "Notfall-Admin",
+      "email": "ops@local",
+      "roles": ["Admin"]
+    }
+  ]
+}

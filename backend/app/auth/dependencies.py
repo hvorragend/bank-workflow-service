@@ -4,12 +4,17 @@
     def foo(user: AuthenticatedUser = Depends(get_current_user)):
         ...
 
-    @router.post("/admin/bar")
-    def bar(user: AuthenticatedUser = Depends(require_role("Admin"))):
+    @router.post("/admin/users")
+    def create_user(user: AuthenticatedUser = Depends(require_permission("admin.users.write"))):
         ...
+
+`require_role` bleibt als Alias bestehen — uebersetzt einen Rollennamen
+intern auf eine Permission-Pruefung gegen den JWT-Permissions-Claim, damit
+nicht migrierte Aufrufer weiter funktionieren.
 """
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 import jwt
@@ -19,6 +24,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from .jwt_handler import decode_token
 from .schemas import AuthenticatedUser
 
+log = logging.getLogger(__name__)
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -52,12 +58,30 @@ def get_current_user(
     return user
 
 
-def require_role(*required: str) -> Callable[[AuthenticatedUser], AuthenticatedUser]:
-    """Dependency-Factory: User muss mindestens eine der genannten Rollen haben.
+def require_permission(*required: str) -> Callable[[AuthenticatedUser], AuthenticatedUser]:
+    """Dependency-Factory: User braucht mindestens eine der genannten Permissions
+    (any-of-Semantik). Permissions stehen im JWT-Claim 'permissions', der beim
+    Login aus den Rollen aufgeloest wird.
+    """
+    needed = set(required)
 
-    Nutzung:
-        Depends(require_role("Admin"))
-        Depends(require_role("Vorstand", "Compliance"))
+    def _check(user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+        if not needed.intersection(user.permissions):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Erforderliche Permission nicht vorhanden. Benoetigt (eine davon): "
+                    f"{sorted(needed)}."
+                ),
+            )
+        return user
+
+    return _check
+
+
+def require_role(*required: str) -> Callable[[AuthenticatedUser], AuthenticatedUser]:
+    """Backwards-Compat-Wrapper: pruefen anhand des roles-Claim. Neue Endpunkte
+    sollten require_permission verwenden.
     """
     needed = set(required)
 
