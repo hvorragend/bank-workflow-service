@@ -201,6 +201,49 @@ export function listAudit(params: ListAuditParams = {}): Promise<AuditEvent[]> {
   return api<AuditEvent[]>(`/admin/audit${qs ? "?" + qs : ""}`);
 }
 
+// --- Datei-Anhaenge (Phase 2 / Commit 6) ---
+
+export interface Attachment {
+  id: string;
+  instance_id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
+export function listAttachments(instanceId: string): Promise<Attachment[]> {
+  return api<Attachment[]>(`/instances/${instanceId}/attachments`);
+}
+
+export async function uploadAttachment(instanceId: string, file: File): Promise<Attachment> {
+  const fd = new FormData();
+  fd.set("file", file);
+  const token = getAccessToken();
+  const r = await fetch(`/instances/${instanceId}/attachments`, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return (await r.json()) as Attachment;
+}
+
+export function deleteAttachment(instanceId: string, attachmentId: string): Promise<void> {
+  return api<void>(`/instances/${instanceId}/attachments/${attachmentId}`, { method: "DELETE" });
+}
+
+export function attachmentDownloadUrl(instanceId: string, attachmentId: string): string {
+  return `/instances/${instanceId}/attachments/${attachmentId}`;
+}
+
 export function getInstance(id: string): Promise<FormInstance> {
   return api<FormInstance>(`/instances/${id}`);
 }

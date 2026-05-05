@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { decideInstance, getInstance, submitInstance } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthContext";
+import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { DynamicForm } from "@/components/DynamicForm";
 import { useToast } from "@/components/Toaster";
 import { humanizeBackendError } from "@/lib/schema-rules";
@@ -156,6 +157,8 @@ export function InstanceDetailPage() {
           readOnly
         />
       </div>
+
+      <AttachmentsSection instanceId={instance.id} readOnly={instance.status !== "entwurf"} />
 
       <div className="paper mt-6">
         <h3 className="font-display font-display font-medium text-2xl tracking-tightish m-0">

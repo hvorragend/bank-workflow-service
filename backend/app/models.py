@@ -110,3 +110,22 @@ class AuditEvent(Base):
     target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+class Attachment(Base):
+    """Datei-Anhang an einem Antrag. Inhalt liegt im Storage-Backend (Filesystem
+    oder spaeter S3-kompatibel), Metadaten + SHA-256 in der DB.
+    """
+    __tablename__ = "attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    instance_id: Mapped[str] = mapped_column(ForeignKey("form_instances.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column()
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    storage_key: Mapped[str] = mapped_column(String(255))
+    uploaded_by: Mapped[str] = mapped_column(String(100))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    instance: Mapped[FormInstance] = relationship()

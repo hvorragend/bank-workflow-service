@@ -28,7 +28,7 @@ from . import models
 from .admin import router as admin_router
 from .auth import router as auth_router
 from .database import Base, SessionLocal, engine
-from .routers import definitions, instances
+from .routers import attachments, definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 LEGACY_DEMO_DIR = Path(__file__).resolve().parent.parent / "legacy_demo"
@@ -286,6 +286,7 @@ app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_excee
 app.include_router(auth_router.router)
 app.include_router(definitions.router)
 app.include_router(instances.router)
+app.include_router(attachments.router)
 app.include_router(admin_router.router)
 
 

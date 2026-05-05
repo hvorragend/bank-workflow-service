@@ -68,9 +68,16 @@ def _test_environment(tmp_path_factory):
     os.environ["AUTH_MODE"] = "local"
     os.environ["USERS_CONFIG_PATH"] = str(users_path)
 
-    # Settings-Cache leeren, damit unsere Env-Vars greifen
+    # Storage-Verzeichnis fuer Datei-Anhaenge (Phase 2 / Commit 6)
+    storage_root = tmp_path_factory.mktemp("attachments")
+    os.environ["STORAGE_BACKEND"] = "filesystem"
+    os.environ["STORAGE_ROOT"] = str(storage_root)
+
+    # Caches leeren, damit unsere Env-Vars greifen
     from app.auth.config import reset_settings_cache
+    from app.storage import reset_storage_cache
     reset_settings_cache()
+    reset_storage_cache()
 
     yield
 
