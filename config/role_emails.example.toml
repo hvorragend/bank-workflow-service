@@ -1,0 +1,14 @@
+# Optional: Mapping Anwendungs-Rolle -> Empfaenger-Adressen.
+# Wenn dieser File fehlt, fallback auf die in config/users.json hinterlegten
+# E-Mail-Adressen aller User mit der jeweiligen Rolle.
+#
+# Kopieren nach config/role_emails.toml und anpassen.
+
+[role_emails]
+Vorstand              = ["vorstand@vbga.de"]
+Compliance            = ["compliance@vbga.de"]
+Risikomanagement      = ["risiko@vbga.de"]
+Fachbereichsleiter    = ["fachbereich-it@vbga.de"]
+Bereichsleiter        = ["bereich@vbga.de"]
+Vorstandssekretariat  = ["vorstandssekretariat@vbga.de"]
+Admin                 = ["bws-admin@vbga.de"]

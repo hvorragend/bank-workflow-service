@@ -14,7 +14,7 @@ import io
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 from sqlalchemy import and_, func, select
@@ -24,6 +24,7 @@ from .. import models, schemas, workflow
 from ..auth.dependencies import get_current_user
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
+from ..notifications import dispatcher as notify
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -294,6 +295,7 @@ def get_instance(
 @router.post("/{instance_id}/submit", response_model=schemas.FormInstanceWithSchema)
 def submit_instance(
     instance_id: str,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
 ):
@@ -306,6 +308,23 @@ def submit_instance(
         raise HTTPException(409, str(e))
     db.commit()
     db.refresh(instance)
+
+    # Empfaenger-Rolle der ersten Stage informieren — Versand im Hintergrund.
+    stage_def = next(
+        (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
+        None,
+    )
+    if stage_def:
+        background.add_task(
+            notify.notify_stage_review_pending,
+            instance_id=instance.id,
+            daten=instance.daten,
+            schema_version=f"{instance.definition.typ}/{instance.definition.version}",
+            stage=instance.aktuelle_stage,
+            rolle=stage_def["rolle"],
+            antragsteller=instance.antragsteller,
+            erstellt_am=instance.erstellt_am,
+        )
     return _to_instance_with_schema(instance)
 
 
@@ -313,6 +332,7 @@ def submit_instance(
 def decide_instance(
     instance_id: str,
     action: schemas.ApprovalAction,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
 ):
@@ -324,6 +344,13 @@ def decide_instance(
     instance = db.get(models.FormInstance, instance_id)
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
+    # Stage-Rolle vor der Aenderung merken — fuer Reject/Returned-Mails.
+    pre_stage_def = next(
+        (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
+        None,
+    )
+    pre_rolle = pre_stage_def["rolle"] if pre_stage_def else "?"
+
     try:
         workflow.decide(
             db, instance,
@@ -340,6 +367,58 @@ def decide_instance(
         raise HTTPException(status.HTTP_409_CONFLICT, msg)
     db.commit()
     db.refresh(instance)
+
+    schema_version = f"{instance.definition.typ}/{instance.definition.version}"
+
+    # Notifications je nach neuem Status (Background — Workflow ist bereits committed).
+    if action.entscheidung == "approved":
+        if instance.status == "genehmigt":
+            background.add_task(
+                notify.notify_approved,
+                instance_id=instance.id,
+                daten=instance.daten,
+                schema_version=schema_version,
+                antragsteller=instance.antragsteller,
+                abgeschlossen_am=instance.abgeschlossen_am,
+            )
+        else:
+            # Naechste Stage: deren Rolle informieren
+            next_stage = next(
+                (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
+                None,
+            )
+            if next_stage:
+                background.add_task(
+                    notify.notify_stage_review_pending,
+                    instance_id=instance.id,
+                    daten=instance.daten,
+                    schema_version=schema_version,
+                    stage=instance.aktuelle_stage,
+                    rolle=next_stage["rolle"],
+                    antragsteller=instance.antragsteller,
+                    erstellt_am=instance.erstellt_am,
+                )
+    elif action.entscheidung == "rejected":
+        background.add_task(
+            notify.notify_rejected,
+            instance_id=instance.id,
+            daten=instance.daten,
+            schema_version=schema_version,
+            antragsteller=instance.antragsteller,
+            rolle=pre_rolle,
+            kommentar=action.kommentar,
+        )
+    elif action.entscheidung == "returned":
+        background.add_task(
+            notify.notify_returned,
+            instance_id=instance.id,
+            daten=instance.daten,
+            schema_version=schema_version,
+            antragsteller=instance.antragsteller,
+            rolle=pre_rolle,
+            kommentar=action.kommentar,
+        )
+
     return _to_instance_with_schema(instance)
 
 

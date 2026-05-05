@@ -25,6 +25,7 @@ htmlcov/
 deploy/.env
 config/users.json
 config/ldap.toml
+config/role_emails.toml
 
 # Frontend (kommt mit Commit 3)
 node_modules/
