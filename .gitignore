@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtuelle Umgebungen
+.venv/
+venv/
+
+# Test- und Tooling-Caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Lokale SQLite-Datenbank (wird beim ersten Start angelegt)
+*.db
+
+# Editor-/OS-Artefakte
+.vscode/
+.idea/
+.DS_Store
