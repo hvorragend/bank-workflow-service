@@ -1,0 +1,70 @@
+# Komplettes Deployment-Skelett fuer den Bank Workflow Service.
+# In Phase 1 / Commit 1 sind nur Postgres + Backend enthalten.
+#
+# Mit Commit 2 (Auth) kommt eine LDAP-Konfiguration hinzu, mit Commit 3
+# (React-Frontend) der "web"-Service plus Traefik als Reverse-Proxy.
+#
+# Verwendung (lokaler Smoke-Test des deploybaren Stacks):
+#   cp deploy/.env.example deploy/.env       # Werte anpassen
+#   docker compose -f deploy/docker-compose.yml up -d
+# Dann: http://localhost:8000
+
+name: bws
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bws-postgres
+    environment:
+      POSTGRES_USER: ${PG_USER:-bws}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD muss in deploy/.env gesetzt sein}
+      POSTGRES_DB: ${PG_DB:-bws}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-bws} -d ${PG_DB:-bws}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: bws-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${PG_USER:-bws}:${PG_PASSWORD}@postgres:5432/${PG_DB:-bws}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss in deploy/.env gesetzt sein (openssl rand -hex 32)}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      USERS_CONFIG_PATH: ${USERS_CONFIG_PATH:-config/users.json}
+      LDAP_CONFIG_PATH: ${LDAP_CONFIG_PATH:-config/ldap.toml}
+      STORAGE_BACKEND: filesystem
+      STORAGE_ROOT: /data/attachments
+      ATTACHMENT_MAX_BYTES: ${ATTACHMENT_MAX_BYTES:-26214400}
+    volumes:
+      # Auth-Konfiguration aus dem Repo-config/-Verzeichnis (read-only).
+      - ../config:/app/config:ro
+      # Persistentes Volume fuer Datei-Anhaenge — ueberlebt Container-Restarts,
+      # gehoert in das Proxmox-Backup der VM (oder eigenes pg_dump-aehnliches Skript).
+      - bws-attachments:/data/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: bws-web
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  bws-attachments:

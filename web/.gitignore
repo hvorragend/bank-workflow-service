@@ -1,0 +1,9 @@
+node_modules
+dist
+.vite
+.cache
+*.log
+# TypeScript-Build-Artefakte
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
