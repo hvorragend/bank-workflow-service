@@ -12,7 +12,6 @@
       "properties": {
         "titel": {
           "type": "string",
-          "minLength": 5,
           "description": "Kurztitel des Beschlusses, z. B. 'Auslagerung Rechenzentrumsbetrieb an Atruvia AG'"
         },
         "datum": {
@@ -22,7 +21,6 @@
         },
         "vorlagengeber": {
           "type": "string",
-          "minLength": 1,
           "description": "Name der vorlegenden Person (Bereichsleitung)"
         },
         "kategorie": {
@@ -37,13 +35,11 @@
       "properties": {
         "sachverhalt": {
           "type": "string",
-          "minLength": 100,
-          "description": "Worum geht es? Sachverhalt fachlich darstellen (mind. 100 Zeichen)."
+          "description": "Worum geht es? Sachverhalt fachlich darstellen."
         },
         "begruendung": {
           "type": "string",
-          "minLength": 100,
-          "description": "Warum ist dieser Beschluss notwendig? Geschäftliche Begründung (mind. 100 Zeichen)."
+          "description": "Warum ist dieser Beschluss notwendig? Geschäftliche Begründung."
         },
         "alternativen": {
           "type": "string",
@@ -57,7 +53,6 @@
       "properties": {
         "wortlaut": {
           "type": "string",
-          "minLength": 30,
           "description": "Wörtlicher Beschlusstext, wie er ins Protokoll eingehen soll."
         }
       }
@@ -117,19 +112,19 @@
       "allOf": [
         {
           "if": { "properties": { "at_9_auslagerung":   { "const": true } }, "required": ["at_9_auslagerung"] },
-          "then": { "required": ["at_9_begruendung"], "properties": { "at_9_begruendung": { "minLength": 30 } } }
+          "then": { "required": ["at_9_begruendung"] }
         },
         {
           "if": { "properties": { "at_7_2_it_systeme":  { "const": true } }, "required": ["at_7_2_it_systeme"] },
-          "then": { "required": ["at_7_2_begruendung"], "properties": { "at_7_2_begruendung": { "minLength": 30 } } }
+          "then": { "required": ["at_7_2_begruendung"] }
         },
         {
           "if": { "properties": { "dora_ikt_risiko":    { "const": true } }, "required": ["dora_ikt_risiko"] },
-          "then": { "required": ["dora_begruendung"], "properties": { "dora_begruendung": { "minLength": 30 } } }
+          "then": { "required": ["dora_begruendung"] }
         },
         {
           "if": { "properties": { "npp_neue_produkte":  { "const": true } }, "required": ["npp_neue_produkte"] },
-          "then": { "required": ["npp_begruendung"], "properties": { "npp_begruendung": { "minLength": 30 } } }
+          "then": { "required": ["npp_begruendung"] }
         }
       ]
     }
