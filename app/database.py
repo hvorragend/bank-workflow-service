@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 # In production: postgresql+psycopg://user:pw@host/db
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./idv_workflow.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bank_workflow.db")
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)

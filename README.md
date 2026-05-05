@@ -1,4 +1,4 @@
-# IDV Workflow Service — Skelett
+# Bank Workflow Service — Skelett
 
 Versionierter Workflow- und Genehmigungs-Service für bankfachliche Anträge
 (AT 8.2-Analysen, IKT-Risikogenehmigungen, Vorstandsbeschlüsse, Projektanträge,
@@ -40,16 +40,21 @@ Jeder ausgefüllte Antrag (`FormInstance`) wird **hart an eine konkrete Schema-V
 ## Quickstart
 
 ```bash
-cd idv-workflow
+cd bank-workflow-service
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Beim ersten Start werden Tabellen angelegt (SQLite, `idv_workflow.db`) und zwei
-Beispiel-Versionen der AT 8.2-Maske geseeded:
-- v1.0.0 (retired) — drei Wesentlichkeitskriterien
-- v2.0.0 (active)  — zusätzlich `doraRelevanz` als Pflichtfeld
+Beim ersten Start werden Tabellen angelegt (SQLite, `bank_workflow.db`) und
+folgende Demo-Daten geseeded:
+- **AT 8.2-Maske** in zwei Versionen — v1.0.0 (retired, drei Wesentlichkeitskriterien)
+  und v2.0.0 (active, zusätzlich `doraRelevanz` als Pflichtfeld)
+- **Vorstandsbeschluss-Maske** v1.0.0 (active) mit conditional Pflichtfeldern für
+  AT 9 / AT 7.2 / DORA / NPP / AT 8.2-Relevanz
+- **Drei Demo-Anträge** in verschiedenen Stadien: ein abgeschlossener AT-8.2-Antrag,
+  ein Vorstandsbeschluss zur Auslagerung an Atruvia (zur Entscheidung beim Vorstand),
+  ein Vorstandsbeschluss zur Mitarbeiterbeteiligung (Entwurf, NPP-Hinweis aktiv)
 
 Drei Anlaufpunkte stehen dann zur Verfügung:
 - **Demo-UI**:      <http://localhost:8000/demo>
