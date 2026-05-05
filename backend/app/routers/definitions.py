@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..auth.dependencies import require_role
+from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/definitions", tags=["definitions"])
 def create_definition(
     payload: schemas.FormDefinitionCreate,
     db: Session = Depends(get_db),
-    _admin: AuthenticatedUser = Depends(require_role("Admin")),
+    _admin: AuthenticatedUser = Depends(require_permission("definitions.upload")),
 ) -> models.FormDefinition:
     """Create a new form definition (status starts as 'draft')."""
     existing = db.scalar(
@@ -69,7 +69,7 @@ def get_definition(definition_id: str, db: Session = Depends(get_db)) -> models.
 def activate(
     definition_id: str,
     db: Session = Depends(get_db),
-    _admin: AuthenticatedUser = Depends(require_role("Admin")),
+    _admin: AuthenticatedUser = Depends(require_permission("definitions.activate")),
 ) -> models.FormDefinition:
     """Activate a draft definition. Retires older active versions of the same typ."""
     d = db.get(models.FormDefinition, definition_id)

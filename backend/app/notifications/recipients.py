@@ -1,38 +1,22 @@
-"""Aufloesung Rolle -> E-Mail-Empfaenger.
-
-Reihenfolge:
-1. Wenn config/role_emails.toml einen Eintrag fuer die Rolle hat: nimm den.
-2. Sonst: alle local_users, die die Rolle haben, mit nicht-leerer email-Adresse.
-
-(LDAP-Group-Resolver kommt in Phase 3 mit Eskalation, falls noetig — fuer
-den Standardfall „Gruppenpostfach pro Rolle" reicht das toml-Mapping.)
-"""
+"""Backwards-Kompat-Wrapper. Echte Logik liegt in config_service.role_emails."""
 from __future__ import annotations
 
-from ..auth.config import load_local_users
-from .config import load_role_emails
+from sqlalchemy.orm import Session
+
+from ..config_service.role_emails import email_for_user as _email_for_user
+from ..config_service.role_emails import emails_for_role as _emails_for_role
+from ..database import SessionLocal
 
 
-def emails_for_role(role: str) -> list[str]:
-    overrides = load_role_emails()
-    if role in overrides:
-        return [a.strip() for a in overrides[role] if a.strip()]
-    # Fallback: aus local_users
-    addrs: list[str] = []
-    for user in load_local_users().values():
-        if role in user.roles and user.email:
-            addrs.append(user.email)
-    # Duplikate entfernen, Reihenfolge stabil
-    seen: set[str] = set()
-    out: list[str] = []
-    for a in addrs:
-        if a not in seen:
-            seen.add(a)
-            out.append(a)
-    return out
+def emails_for_role(role: str, db: Session | None = None) -> list[str]:
+    if db is not None:
+        return _emails_for_role(db, role)
+    with SessionLocal() as s:
+        return _emails_for_role(s, role)
 
 
-def email_for_user(username: str) -> str | None:
-    """Liefert die E-Mail eines konkreten Users (Antragstellers, falls bekannt)."""
-    user = load_local_users().get(username)
-    return user.email if user and user.email else None
+def email_for_user(username: str, db: Session | None = None) -> str | None:
+    if db is not None:
+        return _email_for_user(db, username)
+    with SessionLocal() as s:
+        return _email_for_user(s, username)

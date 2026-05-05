@@ -37,9 +37,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${PG_USER:-bws}:${PG_PASSWORD}@postgres:5432/${PG_DB:-bws}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss in deploy/.env gesetzt sein (openssl rand -hex 32)}
-      AUTH_MODE: ${AUTH_MODE:-local}
+      CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?CONFIG_ENCRYPTION_KEY muss gesetzt sein - siehe deploy/.env.example}
+      CONFIG_ENCRYPTION_KEY_OLD: ${CONFIG_ENCRYPTION_KEY_OLD:-}
+      EMERGENCY_USERS_PATH: ${EMERGENCY_USERS_PATH:-config/emergency_users.json}
+      # Brownfield: alte Pfade werden beim Start einmalig in die DB importiert,
+      # danach kommt die gesamte Konfiguration aus dem Admin-Panel.
       USERS_CONFIG_PATH: ${USERS_CONFIG_PATH:-config/users.json}
       LDAP_CONFIG_PATH: ${LDAP_CONFIG_PATH:-config/ldap.toml}
+      ROLE_EMAILS_PATH: ${ROLE_EMAILS_PATH:-config/role_emails.toml}
       STORAGE_BACKEND: filesystem
       STORAGE_ROOT: /data/attachments
       ATTACHMENT_MAX_BYTES: ${ATTACHMENT_MAX_BYTES:-26214400}

@@ -3,10 +3,11 @@
 Setzt fuer alle Tests:
 - DATABASE_URL auf eine SQLite-Tempdatei (sauber pro Testlauf)
 - JWT_SECRET auf einen festen Test-Wert
-- AUTH_MODE auf 'local'
-- USERS_CONFIG_PATH auf eine generierte Test-JSON mit allen Rollen, die die
-  Workflow-Engine erwartet (Fachbereichsleiter, Risikomanagement, Vorstand,
-  Bereichsleiter, Compliance, Vorstandssekretariat, Admin)
+- CONFIG_ENCRYPTION_KEY auf einen festen Test-Wert
+- USERS_CONFIG_PATH auf eine generierte Test-JSON mit allen Rollen — der
+  Bootstrap importiert diese Datei beim ersten Start in die users-Tabelle.
+- EMERGENCY_USERS_PATH auf einen einzelnen Notfall-Admin (damit
+  ensure_emergency_admin_or_die in jedem Fall durchlaeuft).
 
 So koennen Tests sich per /auth/login einen Token holen und dann genauso
 gegen die API arbeiten wie ein echter Frontend-Client.
@@ -20,11 +21,11 @@ from pathlib import Path
 
 import pytest
 from argon2 import PasswordHasher
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 # --- Test-User -----------------------------------------------------------------
 
-# Ein User pro Rolle, plus ein Multi-Rolle-Admin. Passwort ueberall "test123!".
 TEST_PASSWORD = "test123!"
 
 TEST_USERS = [
@@ -36,18 +37,20 @@ TEST_USERS = [
     ("compliance",  ["Compliance"]),
     ("bereich",     ["Bereichsleiter"]),
     ("sekretariat", ["Vorstandssekretariat"]),
-    ("nobody",      []),  # User ohne Rollen — fuer 403-Tests
+    ("nobody",      []),
 ]
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _test_environment(tmp_path_factory):
-    """Setzt Env-Vars + schreibt eine Test-users.json. Wird automatisch aktiv."""
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="bws_test_")
     os.close(db_fd)
 
-    users_path = tmp_path_factory.mktemp("auth-config") / "users.json"
+    cfg_dir = tmp_path_factory.mktemp("auth-config")
+    users_path = cfg_dir / "users.json"
+    emergency_path = cfg_dir / "emergency_users.json"
     hasher = PasswordHasher()
+
     users_payload = {
         "users": [
             {
@@ -62,33 +65,45 @@ def _test_environment(tmp_path_factory):
     }
     users_path.write_text(json.dumps(users_payload), encoding="utf-8")
 
-    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
-    # 32+ Bytes, sonst meckert PyJWT fuer HS256
-    os.environ["JWT_SECRET"] = "test-secret-not-for-production-this-is-long-enough-32b"
-    os.environ["AUTH_MODE"] = "local"
-    os.environ["USERS_CONFIG_PATH"] = str(users_path)
+    # Notfall-Admin: separater User, andere Credentials.
+    emergency_payload = {
+        "users": [
+            {
+                "username": "notfall",
+                "password_argon2": hasher.hash("notfall-pw"),
+                "name": "Notfall-Admin",
+                "email": "notfall@test.local",
+                "roles": ["Admin"],
+            }
+        ]
+    }
+    emergency_path.write_text(json.dumps(emergency_payload), encoding="utf-8")
 
-    # Storage-Verzeichnis fuer Datei-Anhaenge (Phase 2 / Commit 6)
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["JWT_SECRET"] = "test-secret-not-for-production-this-is-long-enough-32b"
+    os.environ["CONFIG_ENCRYPTION_KEY"] = Fernet.generate_key().decode("ascii")
+    os.environ["USERS_CONFIG_PATH"] = str(users_path)
+    os.environ["EMERGENCY_USERS_PATH"] = str(emergency_path)
+
     storage_root = tmp_path_factory.mktemp("attachments")
     os.environ["STORAGE_BACKEND"] = "filesystem"
     os.environ["STORAGE_ROOT"] = str(storage_root)
 
-    # Caches leeren, damit unsere Env-Vars greifen
     from app.auth.config import reset_settings_cache
+    from app.security import secrets as secrets_mod
     from app.storage import reset_storage_cache
     reset_settings_cache()
+    secrets_mod.reset_cache()
     reset_storage_cache()
 
     yield
 
-    # Aufraeumen
     Path(db_path).unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="module")
 def client():
-    """Importiert die App NACH der Env-Vorbereitung. Deaktiviert den Login-Rate-Limiter,
-    damit Tests viele Logins schnell hintereinander machen koennen."""
+    """Importiert die App NACH der Env-Vorbereitung. Deaktiviert den Login-Rate-Limiter."""
     from app.auth.rate_limit import limiter
     from app.main import app
 
@@ -103,7 +118,6 @@ def client():
 # --- Login-Helper --------------------------------------------------------------
 
 def login_as(client: TestClient, username: str, password: str = TEST_PASSWORD) -> str:
-    """Loggt einen Test-User ein und gibt den Access-Token zurueck."""
     r = client.post("/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200, f"Login fehlgeschlagen fuer {username}: {r.status_code} {r.text}"
     return r.json()["access_token"]
@@ -115,7 +129,6 @@ def auth_header(token: str) -> dict[str, str]:
 
 @pytest.fixture(scope="module")
 def admin_token(client) -> str:
-    """Ein einsatzbereiter Token mit allen Rollen — fuer Tests, die durch alle Stages laufen."""
     return login_as(client, "admin")
 
 
@@ -124,14 +137,7 @@ def admin_auth(admin_token) -> dict[str, str]:
     return auth_header(admin_token)
 
 
-# --- MaRisk-Nachweismatrix-Generator (Phase 3 / Commit 9) ---------------------
-#
-# Aktiviert sich nur, wenn `pytest --marisk-report` uebergeben wird. Sammelt
-# alle Tests mit @pytest.mark.fachlich / @pytest.mark.notfall /
-# @pytest.mark.performance und schreibt eine Markdown-Tabelle nach
-# docs/testdokumentation/nachweismatrix.md.
-
-from pathlib import Path  # noqa: E402
+# --- MaRisk-Nachweismatrix-Generator ------------------------------------------
 
 _REPORT_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "testdokumentation" / "nachweismatrix.md"
 
@@ -145,22 +151,19 @@ def pytest_addoption(parser):
     )
 
 
-# Pro Item-Outcome speichern wir die fachlichen/notfall/performance-Marker.
 _test_outcomes: list[dict] = []
 
 
 def pytest_runtest_logreport(report):
-    """Sammelt das Outcome jedes Tests in der 'call'-Phase."""
     if report.when != "call":
         return
-    # Nur Tests beruecksichtigen, die einen relevanten Marker haben.
     keywords = report.keywords
     relevant = {"fachlich", "notfall", "performance"}.intersection(keywords)
     if not relevant:
         return
     _test_outcomes.append({
         "nodeid": report.nodeid,
-        "outcome": report.outcome,  # passed | failed | skipped
+        "outcome": report.outcome,
         "duration": round(report.duration, 3),
         "markers": sorted(relevant),
     })
@@ -169,8 +172,6 @@ def pytest_runtest_logreport(report):
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     if not config.getoption("--marisk-report"):
         return
-    # Pro Test die Marker-Args aus den gesammelten Items rekonstruieren —
-    # report.keywords kennt nur die Namen, nicht die Argumente.
     items_by_id = {it.nodeid: it for it in terminalreporter._session.items}
     rows: list[dict] = []
     for outc in _test_outcomes:
@@ -195,7 +196,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     lines = [
         "# Nachweismatrix",
         "",
-        "> **Hinweis:** generiert vom Pytest-Hook `--marisk-report`. Bitte nicht von Hand bearbeiten.",
+        "> **Hinweis:** generiert vom Pytest-Hook `--marisk-report`.",
         f"> Letzter Lauf: `{exitstatus_to_text(exitstatus)}` mit {len(rows)} relevanten Test-Markern.",
         "",
         "## Fachliche Tests (MaRisk-/DORA-Bezug)",

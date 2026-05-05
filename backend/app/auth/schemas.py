@@ -26,7 +26,11 @@ class AuthenticatedUser(BaseModel):
     name: str = ""
     email: str = ""
     roles: list[str] = Field(default_factory=list)
-    auth_source: str = "local"  # local | ldap
+    permissions: list[str] = Field(
+        default_factory=list,
+        description="Aufgeloeste Permissions aus den zugewiesenen Rollen — werden im JWT mitgegeben.",
+    )
+    auth_source: str = "local"  # local | ldap | emergency
 
 
 class MeResponse(AuthenticatedUser):
