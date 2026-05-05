@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import io
 
+import pytest
+
 
 def _create_draft_instance(client, admin_auth) -> str:
     defs = client.get("/definitions").json()
@@ -29,6 +31,10 @@ def _pdf_bytes() -> bytes:
     return b"%PDF-1.4\n%TestPDF\n" + b"x" * 100
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 7.2 — Datenintegritaet bei Dateianhaengen",
+    soll="Hochgeladenes PDF wird mit SHA-256-Hash und Metadaten persistiert, byte-identisch wieder ausgeliefert.",
+)
 def test_upload_pdf_persists_metadata_and_hash(client, admin_auth):
     iid = _create_draft_instance(client, admin_auth)
     files = {"file": ("beschluss.pdf", io.BytesIO(_pdf_bytes()), "application/pdf")}
@@ -113,6 +119,10 @@ def test_delete_blocked_after_submit(client, admin_auth):
     assert r.status_code == 409
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 4.3.4 — revisionssichere Audit-Spur",
+    soll="Datei-Upload erzeugt einen audit_events-Eintrag mit Action 'attachment.uploaded'.",
+)
 def test_audit_log_records_attachment_actions(client, admin_auth):
     iid = _create_draft_instance(client, admin_auth)
     client.post(

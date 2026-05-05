@@ -10,6 +10,8 @@ einen Token mit allen Rollen.
 """
 from __future__ import annotations
 
+import pytest
+
 
 VALID_V1_DATA = {
     "antragsteller": {
@@ -44,6 +46,10 @@ def test_seeded_definitions_present(client):
     assert versions == {"1.0.0": "retired", "2.0.0": "active"}
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 7.2 Tz. 2 — Validierung gegen gepinnte Schema-Version",
+    soll="Antrag gegen v2 ohne doraRelevanz wird mit 422 abgewiesen.",
+)
 def test_create_instance_against_active_v2_requires_dora(client, admin_auth):
     v2_id = _find_definition(client, "2.0.0")
     r = client.post(
@@ -55,6 +61,10 @@ def test_create_instance_against_active_v2_requires_dora(client, admin_auth):
     assert "doraRelevanz" in r.json()["detail"]
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 7.2 Tz. 1 — Schemaversionsbindung",
+    soll="Altantrag (v1) bleibt nach Maskenwechsel auf v2 gegen sein urspruengliches Schema renderbar.",
+)
 def test_old_v1_instance_stays_valid_after_v2_activation(client, admin_auth):
     """Der Kerntest: ein v1-Antrag bleibt nutzbar, auch wenn v2 inzwischen aktiv ist."""
     v1_id = _find_definition(client, "1.0.0")
@@ -79,6 +89,10 @@ def test_old_v1_instance_stays_valid_after_v2_activation(client, admin_auth):
     assert "doraRelevanz" not in krit
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 4.3.1 — mehrstufige Genehmigung mit Rollentrennung",
+    soll="Vollstaendige Approval-Kette laeuft durch alle drei Stages und endet mit status=genehmigt + 3 Audit-Eintraegen.",
+)
 def test_full_approval_chain(client, admin_auth):
     v2_id = _find_definition(client, "2.0.0")
     daten = {**VALID_V1_DATA}

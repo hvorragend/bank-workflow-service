@@ -99,6 +99,10 @@ def test_erinnerung_at_half_sla(client, admin_auth, enable_notifications_and_esc
     assert any("Erinnerung" in m["subject"] for m in captured_mails), [m["subject"] for m in captured_mails]
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 4.3.4 — Eskalation bei ueberschrittenem SLA",
+    soll="Antrag, der laenger als das Stage-SLA in einer Stage haengt, loest die Stufe-2-Eskalation an den Bereichsleiter aus.",
+)
 def test_eskalation_after_sla_breach(client, admin_auth, enable_notifications_and_escalation, captured_mails):
     iid = _create_in_review_instance(client, admin_auth)
     _backdate_stage(iid, days_ago=11)  # SLA = 10 — ueberschritten

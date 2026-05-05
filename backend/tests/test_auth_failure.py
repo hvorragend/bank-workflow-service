@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
+import pytest
 
 from .conftest import TEST_PASSWORD, auth_header, login_as
 
@@ -30,6 +31,10 @@ def test_protected_endpoint_with_garbage_token_returns_401(client):
     assert r.status_code == 401
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 7.2 — Sitzungssicherheit",
+    soll="Abgelaufenes Access-Token wird mit 401 abgewiesen, kein Zugriff auf geschuetzte Endpunkte.",
+)
 def test_protected_endpoint_with_expired_token_returns_401(client):
     """Wir bauen ein abgelaufenes Token mit dem Test-Secret und schicken es."""
     import os
@@ -65,6 +70,10 @@ def test_admin_only_endpoint_blocks_non_admin(client):
     assert r.status_code == 403
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 4.3.1 — Rollentrennung in Genehmigungsketten",
+    soll="User ohne die zur Stage gehoerende Rolle wird beim decide-Endpoint mit 403 abgewiesen.",
+)
 def test_decide_with_wrong_role_returns_403(client, admin_auth):
     """User ohne Vorstand-Rolle darf den Vorstandsbeschluss nicht in der Vorstand-Stage genehmigen."""
     # Admin (alle Rollen) legt einen Antrag an und treibt ihn bis zur Vorstand-Stage.

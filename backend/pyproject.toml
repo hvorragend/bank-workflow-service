@@ -48,3 +48,8 @@ include = ["app*"]
 pythonpath = ["."]
 testpaths  = ["tests"]
 addopts    = "-v"
+markers = [
+  "fachlich(anforderung, soll): Fachlicher/regulatorischer Test mit MaRisk-/DORA-Bezug",
+  "notfall(szenario): Wiederanlauf-/Rollback-/Recovery-Smoke",
+  "performance(sla_ms): Performance-Test mit SLA in Millisekunden",
+]

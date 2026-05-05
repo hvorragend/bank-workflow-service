@@ -3,9 +3,15 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from .conftest import auth_header, login_as
 
 
+@pytest.mark.fachlich(
+    anforderung="MaRisk AT 7.2 — kontrollierte Programmaenderungen",
+    soll="Neue Maskenversionen werden ueber den Admin-Upload als 'draft' angelegt; Aktivierung ist ein zweiter, dokumentierter Schritt.",
+)
 def test_upload_creates_draft_definition(client, admin_auth):
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

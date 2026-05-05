@@ -122,3 +122,125 @@ def admin_token(client) -> str:
 @pytest.fixture(scope="module")
 def admin_auth(admin_token) -> dict[str, str]:
     return auth_header(admin_token)
+
+
+# --- MaRisk-Nachweismatrix-Generator (Phase 3 / Commit 9) ---------------------
+#
+# Aktiviert sich nur, wenn `pytest --marisk-report` uebergeben wird. Sammelt
+# alle Tests mit @pytest.mark.fachlich / @pytest.mark.notfall /
+# @pytest.mark.performance und schreibt eine Markdown-Tabelle nach
+# docs/testdokumentation/nachweismatrix.md.
+
+from pathlib import Path  # noqa: E402
+
+_REPORT_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "testdokumentation" / "nachweismatrix.md"
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--marisk-report",
+        action="store_true",
+        default=False,
+        help="Schreibt nach dem Lauf docs/testdokumentation/nachweismatrix.md.",
+    )
+
+
+# Pro Item-Outcome speichern wir die fachlichen/notfall/performance-Marker.
+_test_outcomes: list[dict] = []
+
+
+def pytest_runtest_logreport(report):
+    """Sammelt das Outcome jedes Tests in der 'call'-Phase."""
+    if report.when != "call":
+        return
+    # Nur Tests beruecksichtigen, die einen relevanten Marker haben.
+    keywords = report.keywords
+    relevant = {"fachlich", "notfall", "performance"}.intersection(keywords)
+    if not relevant:
+        return
+    _test_outcomes.append({
+        "nodeid": report.nodeid,
+        "outcome": report.outcome,  # passed | failed | skipped
+        "duration": round(report.duration, 3),
+        "markers": sorted(relevant),
+    })
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    if not config.getoption("--marisk-report"):
+        return
+    # Pro Test die Marker-Args aus den gesammelten Items rekonstruieren —
+    # report.keywords kennt nur die Namen, nicht die Argumente.
+    items_by_id = {it.nodeid: it for it in terminalreporter._session.items}
+    rows: list[dict] = []
+    for outc in _test_outcomes:
+        item = items_by_id.get(outc["nodeid"])
+        if not item:
+            continue
+        for marker in item.iter_markers():
+            if marker.name not in {"fachlich", "notfall", "performance"}:
+                continue
+            rows.append({
+                "marker": marker.name,
+                "anforderung": marker.kwargs.get("anforderung")
+                              or marker.kwargs.get("szenario")
+                              or marker.kwargs.get("sla_ms"),
+                "soll": marker.kwargs.get("soll"),
+                "test": outc["nodeid"],
+                "outcome": outc["outcome"],
+                "duration": outc["duration"],
+            })
+
+    _REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# Nachweismatrix",
+        "",
+        "> **Hinweis:** generiert vom Pytest-Hook `--marisk-report`. Bitte nicht von Hand bearbeiten.",
+        f"> Letzter Lauf: `{exitstatus_to_text(exitstatus)}` mit {len(rows)} relevanten Test-Markern.",
+        "",
+        "## Fachliche Tests (MaRisk-/DORA-Bezug)",
+        "",
+        "| Anforderung | Soll-Verhalten | Test | Ergebnis | Dauer |",
+        "|---|---|---|---|---|",
+    ]
+    for r in [r for r in rows if r["marker"] == "fachlich"]:
+        lines.append(
+            f"| {r['anforderung'] or '—'} | {r['soll'] or '—'} | `{r['test']}` | "
+            f"{_outcome_emoji(r['outcome'])} {r['outcome']} | {r['duration']}s |"
+        )
+    lines += [
+        "",
+        "## Notfallszenarien",
+        "",
+        "| Szenario | Test | Ergebnis | Dauer |",
+        "|---|---|---|---|",
+    ]
+    for r in [r for r in rows if r["marker"] == "notfall"]:
+        lines.append(
+            f"| {r['anforderung'] or '—'} | `{r['test']}` | "
+            f"{_outcome_emoji(r['outcome'])} {r['outcome']} | {r['duration']}s |"
+        )
+    lines += [
+        "",
+        "## Performance-Tests",
+        "",
+        "| SLA (ms) | Test | Ergebnis | Dauer |",
+        "|---|---|---|---|",
+    ]
+    for r in [r for r in rows if r["marker"] == "performance"]:
+        lines.append(
+            f"| {r['anforderung'] or '—'} | `{r['test']}` | "
+            f"{_outcome_emoji(r['outcome'])} {r['outcome']} | {r['duration']}s |"
+        )
+
+    _REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    terminalreporter.write_line("")
+    terminalreporter.write_line(f"MaRisk-Report geschrieben: {_REPORT_PATH}", green=True)
+
+
+def exitstatus_to_text(code: int) -> str:
+    return {0: "alle Tests gruen", 1: "Tests mit Fehlern", 2: "Aufruf-Fehler"}.get(code, f"exitcode={code}")
+
+
+def _outcome_emoji(outcome: str) -> str:
+    return {"passed": "OK", "failed": "FAIL", "skipped": "SKIP"}.get(outcome, outcome)
