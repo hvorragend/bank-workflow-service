@@ -1,0 +1,96 @@
+{
+  "type": "VerticalLayout",
+  "elements": [
+    {
+      "type": "Group",
+      "label": "Beschluss",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/beschluss/properties/titel" },
+        { "type": "Control", "scope": "#/properties/beschluss/properties/datum" },
+        { "type": "Control", "scope": "#/properties/beschluss/properties/vorlagengeber" },
+        { "type": "Control", "scope": "#/properties/beschluss/properties/kategorie" }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Antrag",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/antrag/properties/sachverhalt", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/antrag/properties/begruendung", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/antrag/properties/alternativen", "options": { "multi": true } }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Beschlussvorschlag",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/beschlussvorschlag/properties/wortlaut", "options": { "multi": true } }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "MaRisk- und DORA-Relevanz",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_9_auslagerung" },
+        {
+          "type": "Control",
+          "scope": "#/properties/marisk_relevanz/properties/at_9_begruendung",
+          "options": { "multi": true },
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_9_auslagerung", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_7_2_it_systeme" },
+        {
+          "type": "Control",
+          "scope": "#/properties/marisk_relevanz/properties/at_7_2_begruendung",
+          "options": { "multi": true },
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_7_2_it_systeme", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/dora_ikt_risiko" },
+        {
+          "type": "Control",
+          "scope": "#/properties/marisk_relevanz/properties/dora_begruendung",
+          "options": { "multi": true },
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/dora_ikt_risiko", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte" },
+        {
+          "type": "Notice",
+          "level": "warning",
+          "label": "Zusätzliches NPP-Verfahren erforderlich",
+          "text": "Bei NPP-Bejahung ist parallel der Neue-Produkte-Prozess nach MaRisk AT 8.1 anzustoßen. Dieser Workflow ersetzt den NPP nicht.",
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte", "schema": { "const": true } }
+          }
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/marisk_relevanz/properties/npp_begruendung",
+          "options": { "multi": true },
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_8_2_wesentlich" },
+        {
+          "type": "Control",
+          "scope": "#/properties/marisk_relevanz/properties/at_8_2_referenz",
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_8_2_wesentlich", "schema": { "const": true } }
+          }
+        }
+      ]
+    }
+  ]
+}
