@@ -19,3 +19,18 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# Lokale Konfiguration / Secrets
+.env
+deploy/.env
+config/users.json
+config/ldap.toml
+
+# Frontend (kommt mit Commit 3)
+node_modules/
+web/dist/
+web/.vite/
+
+# Migrations-/Build-Caches
+**/.mypy_cache/
+**/.ruff_cache/

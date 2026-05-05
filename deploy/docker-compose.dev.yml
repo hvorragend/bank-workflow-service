@@ -1,0 +1,49 @@
+# Lokale Entwicklungs-Hilfsdienste.
+# Backend laeuft daneben nativ (uvicorn app.main:app --reload) — die hier
+# gestarteten Services dienen nur als realistische Datenbank- und Mail-Senke.
+#
+# Verwendung:
+#   docker compose -f deploy/docker-compose.dev.yml up -d
+#   export DATABASE_URL=postgresql+psycopg://bws:bws_local_dev@localhost:5432/bws
+#   cd backend && uvicorn app.main:app --reload
+#
+# Auf Windows aequivalent in PowerShell:
+#   docker compose -f deploy\docker-compose.dev.yml up -d
+#   $env:DATABASE_URL = "postgresql+psycopg://bws:bws_local_dev@localhost:5432/bws"
+#   cd backend ; uvicorn app.main:app --reload
+
+name: bws-dev
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bws-dev-postgres
+    environment:
+      POSTGRES_USER: bws
+      POSTGRES_PASSWORD: bws_local_dev
+      POSTGRES_DB: bws
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bws -d bws"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Faengt ausgehende E-Mails ab — wird in Phase 3 (Notifications) gebraucht,
+  # ist aber jetzt schon nuetzlich, damit niemand versehentlich an echte
+  # Adressen sendet.
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: bws-dev-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web-UI: http://localhost:8025
+    restart: unless-stopped
+
+volumes:
+  postgres-dev-data:

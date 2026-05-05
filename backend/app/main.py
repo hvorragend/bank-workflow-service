@@ -2,11 +2,12 @@
 
 Lokal starten:  uvicorn app.main:app --reload
 Anlaufpunkte:
-  http://localhost:8000/docs   — OpenAPI Swagger UI
-  http://localhost:8000/demo   — Single-File-HTML-Demo
+  http://localhost:8000/docs    — OpenAPI Swagger UI
+  http://localhost:8000/legacy  — Single-File-HTML-Demo (Vue 3 via CDN)
+  http://localhost:8000/demo    — Alias auf /legacy
 
 Beim ersten Start werden Tabellen angelegt und Beispiel-Definitionen
-zusammen mit drei Demo-Anträgen geseedet, damit die Demo aussagekräftig
+zusammen mit drei Demo-Antraegen geseedet, damit die Demo aussagekraeftig
 ist (statt mit leerer Liste zu starten).
 """
 from __future__ import annotations
@@ -27,7 +28,7 @@ from .database import Base, SessionLocal, engine
 from .routers import definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+LEGACY_DEMO_DIR = Path(__file__).resolve().parent.parent / "legacy_demo"
 
 
 # ---------- Seed-Hilfen ----------
@@ -282,12 +283,22 @@ def root() -> dict:
     return {
         "name": "Bank Workflow Service",
         "docs": "/docs",
-        "demo": "/demo",
+        "legacy_demo": "/legacy",
         "status": "ok",
     }
 
 
+@app.get("/legacy", include_in_schema=False)
+def legacy_demo() -> FileResponse:
+    """Liefert die Single-File-Vue-Demo aus (kein Build-Schritt erforderlich).
+
+    Wird mit dem React-Frontend in Phase 1 / Commit 3 weiter parallel betrieben,
+    damit das alte UI verfuegbar bleibt, bis das neue stabil ist.
+    """
+    return FileResponse(LEGACY_DEMO_DIR / "index.html")
+
+
 @app.get("/demo", include_in_schema=False)
-def demo() -> FileResponse:
-    """Liefert die Single-File-HTML-Demo aus (kein Build-Schritt erforderlich)."""
-    return FileResponse(FRONTEND_DIR / "index.html")
+def demo_alias() -> FileResponse:
+    """Alias fuer /legacy — historische URL aus dem Skelett."""
+    return FileResponse(LEGACY_DEMO_DIR / "index.html")

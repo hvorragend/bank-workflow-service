@@ -1,0 +1,40 @@
+[project]
+name = "bank-workflow-service"
+version = "0.3.0"
+description = "Versionierter Workflow- und Genehmigungs-Service fuer bankfachliche Antraege"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# Laufzeit-Abhaengigkeiten. Frontend-Build laeuft separat im web/-Workspace.
+dependencies = [
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.27.0",
+  "sqlalchemy>=2.0.25",
+  "pydantic>=2.5.0",
+  "jsonschema>=4.21.0",
+  "python-statemachine>=2.1.2",
+  # Datenbank — Postgres ist Default in Produktion, SQLite bleibt fuer Tests/Quickstart erlaubt
+  "psycopg[binary]>=3.1.18",
+  "alembic>=1.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "httpx>=0.27.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+# pytest-Konfiguration: rootdir ist backend/, app-Modul wird ueber pythonpath gefunden,
+# damit `pytest` ohne `pip install -e .` direkt aus dem Repo laeuft.
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths  = ["tests"]
+addopts    = "-v"
