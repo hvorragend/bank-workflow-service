@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vbga://forms/at-8-2-analyse/v1",
+  "title": "AT 8.2 Wesentlichkeitsanalyse",
+  "type": "object",
+  "required": ["antragsteller", "vorhaben", "wesentlichkeitskriterien", "ergebnis"],
+  "properties": {
+    "antragsteller": {
+      "type": "object",
+      "required": ["name", "abteilung", "datum"],
+      "properties": {
+        "name":      { "type": "string", "minLength": 1 },
+        "abteilung": { "type": "string", "minLength": 1 },
+        "datum":     { "type": "string", "format": "date" }
+      }
+    },
+    "vorhaben": {
+      "type": "object",
+      "required": ["titel", "kategorie"],
+      "properties": {
+        "titel":     { "type": "string", "minLength": 5 },
+        "kategorie": {
+          "type": "string",
+          "enum": ["Prozess", "IT-System", "Produkt", "Organisation", "Outsourcing"]
+        }
+      }
+    },
+    "wesentlichkeitskriterien": {
+      "type": "object",
+      "required": ["ertragsrelevanz", "risikorelevanz", "aufsichtsrechtlicheRelevanz"],
+      "properties": {
+        "ertragsrelevanz":           { "enum": ["niedrig", "mittel", "hoch"] },
+        "risikorelevanz":            { "enum": ["niedrig", "mittel", "hoch"] },
+        "aufsichtsrechtlicheRelevanz": { "type": "boolean" }
+      }
+    },
+    "ergebnis": {
+      "type": "object",
+      "required": ["wesentlich", "begruendung"],
+      "properties": {
+        "wesentlich":  { "type": "boolean" },
+        "begruendung": { "type": "string", "minLength": 50 }
+      }
+    }
+  }
+}

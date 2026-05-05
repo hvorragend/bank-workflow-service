@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IDV Workflow · Demo</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style>
+    :root {
+      --bg:        #f4f0e8;
+      --paper:     #ffffff;
+      --rule:      #d8d2c2;
+      --rule-soft: #e8e2d2;
+      --ink:       #1a1816;
+      --muted:     #6f6a62;
+      --quiet:     #9a948a;
+      --accent:    #7a2424;
+      --accent-soft:#fbe9e2;
+      --ok:        #2e5d3a;
+      --ok-soft:   #e6efe5;
+      --warn:      #8b6914;
+      --warn-soft: #f5ebcf;
+      --bad:       #7a2424;
+      --bad-soft:  #f3dcd3;
+      --neutral:   #3a4453;
+      --neutral-soft:#e4e6eb;
+
+      --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+      --font-body: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* --------- Masthead ---------- */
+    .masthead {
+      border-bottom: 1px solid var(--rule);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(6px);
+    }
+    .masthead-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 40px 0;
+    }
+    .brand {
+      display: flex; align-items: baseline; gap: 20px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    .brand h1 {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 34px;
+      letter-spacing: -0.02em;
+      margin: 0;
+      font-variation-settings: "opsz" 144;
+    }
+    .brand .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+      letter-spacing: 0.02em;
+    }
+    .brand .edition {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--quiet);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-top: -1px;
+    }
+    .tabs button {
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      padding: 14px 0;
+      margin-right: 32px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: color 120ms, border-color 120ms;
+    }
+    .tabs button:hover { color: var(--ink); }
+    .tabs button.active {
+      color: var(--ink);
+      border-bottom-color: var(--accent);
+    }
+
+    /* --------- Layout ---------- */
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 56px 40px 120px;
+    }
+    .section-head {
+      margin-bottom: 40px;
+      max-width: 720px;
+    }
+    .section-head .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--quiet);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin: 0 0 12px;
+    }
+    .section-head h2 {
+      font-family: var(--font-display);
+      font-variation-settings: "opsz" 144;
+      font-weight: 400;
+      font-size: 40px;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin: 0 0 16px;
+    }
+    .section-head p {
+      color: var(--muted);
+      font-size: 15.5px;
+      margin: 0;
+      max-width: 60ch;
+    }
+
+    /* --------- Cards & paper ---------- */
+    .paper {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      padding: 32px 40px;
+    }
+    .paper + .paper { margin-top: 24px; }
+
+    /* --------- Definitionstabelle ---------- */
+    table.def-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.def-table th {
+      text-align: left;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--quiet);
+      padding: 0 16px 12px;
+      border-bottom: 1px solid var(--rule);
+    }
+    table.def-table td {
+      padding: 18px 16px;
+      border-bottom: 1px solid var(--rule-soft);
+      vertical-align: top;
+    }
+    table.def-table tr:last-child td { border-bottom: 0; }
+    table.def-table .typ {
+      font-family: var(--font-mono);
+      font-weight: 500;
+      font-size: 13px;
+    }
+    table.def-table .titel { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    table.def-table .version {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    /* --------- Status badges ---------- */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .badge.active   { background: var(--ok-soft);     color: var(--ok); }
+    .badge.draft    { background: var(--warn-soft);   color: var(--warn); }
+    .badge.retired  { background: var(--neutral-soft);color: var(--neutral); }
+    .badge.entwurf       { background: var(--neutral-soft); color: var(--neutral); }
+    .badge.in_pruefung   { background: var(--warn-soft);    color: var(--warn); }
+    .badge.genehmigt     { background: var(--ok-soft);      color: var(--ok); }
+    .badge.abgelehnt     { background: var(--bad-soft);     color: var(--bad); }
+    .badge.zurueckgewiesen{background: var(--warn-soft);    color: var(--warn); }
+
+    /* --------- Definition picker ---------- */
+    .picker-row {
+      display: flex; gap: 32px; align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .picker-row label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--quiet);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .picker-row select, .picker-row input {
+      padding: 10px 12px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      color: var(--ink);
+      min-width: 320px;
+    }
+
+    /* --------- Version banner: the centerpiece ---------- */
+    .version-banner {
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--accent);
+      background: var(--paper);
+      padding: 24px 32px;
+      margin: 40px 0;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 28px;
+      align-items: center;
+    }
+    .version-banner .vbig {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .version-banner .vmeta {
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+    .version-banner .vmeta strong { color: var(--ink); font-weight: 500; }
+    .version-banner .vlabel {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--quiet);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* --------- Form rendering ---------- */
+    fieldset.form-group {
+      border: 0;
+      border-top: 1px solid var(--rule-soft);
+      padding: 32px 0 8px;
+      margin: 0;
+    }
+    fieldset.form-group:first-of-type { border-top: 0; padding-top: 8px; }
+    fieldset.form-group legend {
+      font-family: var(--font-display);
+      font-variation-settings: "opsz" 36;
+      font-weight: 500;
+      font-size: 22px;
+      color: var(--ink);
+      padding: 0 16px 0 0;
+      letter-spacing: -0.01em;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px 32px;
+      margin-top: 20px;
+    }
+    .form-field { display: flex; flex-direction: column; }
+    .form-field.full { grid-column: 1 / -1; }
+    .form-field label.flabel {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--quiet);
+      margin-bottom: 8px;
+    }
+    .form-field label.flabel .req { color: var(--accent); margin-left: 3px; }
+    .form-field input[type="text"],
+    .form-field input[type="date"],
+    .form-field input[type="number"],
+    .form-field select,
+    .form-field textarea {
+      padding: 10px 12px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      color: var(--ink);
+      width: 100%;
+    }
+    .form-field input:focus,
+    .form-field select:focus,
+    .form-field textarea:focus {
+      outline: 0;
+      border-color: var(--accent);
+    }
+    .form-field textarea { resize: vertical; min-height: 96px; font-family: var(--font-body); }
+    .form-field .hint {
+      font-size: 12px;
+      color: var(--quiet);
+      margin-top: 6px;
+    }
+    .form-field.bool {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+    }
+    .form-field.bool label.flabel {
+      margin: 0;
+      text-transform: none;
+      letter-spacing: normal;
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    /* readonly view */
+    .ro-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 14px 32px;
+      margin-top: 16px;
+    }
+    .ro-grid dt {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--quiet);
+      padding-top: 2px;
+    }
+    .ro-grid dd { margin: 0; color: var(--ink); white-space: pre-wrap; }
+    .ro-grid dd .empty { color: var(--quiet); font-style: italic; }
+
+    /* --------- Buttons ---------- */
+    .btn {
+      display: inline-block;
+      padding: 11px 22px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+      cursor: pointer;
+      transition: background 120ms, color 120ms;
+    }
+    .btn:hover { background: var(--accent); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.ghost {
+      background: transparent;
+      color: var(--ink);
+    }
+    .btn.ghost:hover { background: var(--ink); color: var(--paper); }
+    .btn.ok { background: var(--ok); border-color: var(--ok); }
+    .btn.ok:hover { background: #1f4528; border-color: #1f4528; }
+    .btn.warn { background: transparent; color: var(--warn); border-color: var(--warn); }
+    .btn.warn:hover { background: var(--warn); color: var(--paper); }
+    .btn.bad { background: transparent; color: var(--bad); border-color: var(--bad); }
+    .btn.bad:hover { background: var(--bad); color: var(--paper); }
+    .btn-row {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-top: 32px; padding-top: 24px;
+      border-top: 1px solid var(--rule-soft);
+    }
+
+    /* --------- Antrags-Liste ---------- */
+    .instance-list {
+      display: flex; flex-direction: column;
+    }
+    .instance-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 32px;
+      align-items: center;
+      padding: 20px 24px;
+      border: 1px solid var(--rule);
+      border-bottom: 0;
+      background: var(--paper);
+      cursor: pointer;
+      transition: background 120ms;
+    }
+    .instance-row:last-child { border-bottom: 1px solid var(--rule); }
+    .instance-row:hover { background: #fdfaf3; }
+    .instance-row .titel {
+      font-family: var(--font-display);
+      font-variation-settings: "opsz" 36;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      margin: 0 0 4px;
+    }
+    .instance-row .meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--quiet);
+      letter-spacing: 0.04em;
+    }
+    .instance-row .meta .schemaver {
+      color: var(--accent);
+    }
+    .instance-row .ant {
+      font-size: 13px; color: var(--muted);
+    }
+    .instance-row .stage-info {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* --------- Detail view ---------- */
+    .detail-back {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 24px;
+      cursor: pointer;
+      background: transparent; border: 0; padding: 0;
+    }
+    .detail-back:hover { color: var(--accent); }
+
+    /* --------- Approval Timeline ---------- */
+    .timeline {
+      margin-top: 24px;
+      position: relative;
+      padding-left: 8px;
+    }
+    .timeline-step {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    .timeline-step:last-child { border-bottom: 0; }
+    .timeline-step .dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      margin-top: 4px;
+      background: var(--rule);
+    }
+    .timeline-step.done .dot { background: var(--ok); }
+    .timeline-step.current .dot {
+      background: var(--paper);
+      border: 2px solid var(--warn);
+      width: 14px; height: 14px;
+      margin-top: 3px; margin-left: -1px;
+    }
+    .timeline-step.rejected .dot { background: var(--bad); }
+    .timeline-step .stage-name {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 500;
+      font-variation-settings: "opsz" 36;
+    }
+    .timeline-step .stage-rolle {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--quiet);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+    .timeline-step .stage-decision {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .timeline-step .stage-decision .gen { color: var(--ink); }
+    .timeline-step .stage-decision .ts {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--quiet);
+      margin-left: 8px;
+    }
+    .timeline-step .stage-decision .kommentar {
+      margin-top: 6px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-left: 2px solid var(--rule);
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    /* --------- Approval action box ---------- */
+    .action-box {
+      margin-top: 32px;
+      padding: 28px 32px;
+      background: #fdfaf3;
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--warn);
+    }
+    .action-box h3 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 500;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .action-box .stage-meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    .action-box .stage-meta strong { color: var(--ink); }
+
+    /* --------- Empty state ---------- */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+      font-style: italic;
+      border: 1px dashed var(--rule);
+    }
+
+    /* --------- Toast ---------- */
+    .toast {
+      position: fixed;
+      bottom: 32px; right: 32px;
+      max-width: 400px;
+      padding: 16px 20px;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 14px;
+      border-left: 3px solid var(--ok);
+      z-index: 100;
+      animation: slidein 200ms ease-out;
+    }
+    .toast.error { border-left-color: var(--bad); }
+    @keyframes slidein {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    /* small util */
+    .row { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    .help {
+      margin-top: 16px;
+      padding: 14px 18px;
+      background: var(--bg);
+      border-left: 2px solid var(--rule);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .help code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--paper);
+      padding: 1px 6px;
+      border: 1px solid var(--rule-soft);
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ============== MASTHEAD ============== -->
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <h1>IDV Workflow</h1>
+        <p class="subtitle">Versionierter Antrags- und Genehmigungsservice</p>
+        <div class="edition">DEMO · v0.1</div>
+      </div>
+      <nav class="tabs">
+        <button :class="{active: tab==='definitionen'}" @click="tab='definitionen'">Definitionen</button>
+        <button :class="{active: tab==='neu'}"          @click="goNew">Neuer Antrag</button>
+        <button :class="{active: tab==='antraege'}"     @click="goList">Anträge</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- =================== DEFINITIONEN =================== -->
+    <section v-if="tab==='definitionen'">
+      <div class="section-head">
+        <p class="eyebrow">01 · Maskendefinitionen</p>
+        <h2>Versionierte Formularvorlagen</h2>
+        <p>
+          Jede Definition ist unveränderlich, sobald sie aktiv ist. Ein Antrag, der
+          gegen eine bestimmte Version erstellt wurde, bleibt für immer an genau
+          diese Version gebunden — auch dann noch, wenn die Maske später Felder
+          gewinnt oder verliert.
+        </p>
+      </div>
+
+      <div class="paper">
+        <table class="def-table">
+          <thead>
+            <tr>
+              <th style="width: 38%">Typ &amp; Titel</th>
+              <th style="width: 14%">Version</th>
+              <th style="width: 14%">Status</th>
+              <th style="width: 20%">Genehmigungsweg</th>
+              <th style="width: 14%; text-align: right">Felder</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="d in definitions" :key="d.id">
+              <td>
+                <div class="typ">{{ d.typ }}</div>
+                <div class="titel">{{ d.titel }}</div>
+              </td>
+              <td><span class="version">{{ d.version }}</span></td>
+              <td><span class="badge" :class="d.status">{{ d.status }}</span></td>
+              <td>
+                <div style="font-size: 12px; color: var(--muted);">
+                  <span v-for="(s, i) in d.workflow_stages" :key="i">
+                    {{ s.rolle }}<span v-if="i < d.workflow_stages.length-1"> → </span>
+                  </span>
+                </div>
+              </td>
+              <td style="text-align: right; font-family: var(--font-mono); font-size: 13px;">
+                {{ countFields(d.json_schema) }}
+              </td>
+            </tr>
+            <tr v-if="!definitions.length">
+              <td colspan="5" style="text-align:center; padding: 40px; color: var(--quiet);">
+                Keine Definitionen gefunden — das Backend lebt nicht oder ist nicht erreichbar.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="help">
+        <strong>Hinweis zum Versionsmodell:</strong>
+        Beim erstmaligen Start des Backends werden zwei Beispiel-Versionen geseeded:
+        <code>v1.0.0</code> (retired, drei Wesentlichkeitskriterien) und
+        <code>v2.0.0</code> (active, ergänzt um <code>doraRelevanz</code>).
+        Wechsle zur Anträge-Liste, um zu sehen, dass v1-Anträge das v2-Feld nicht zeigen.
+      </div>
+    </section>
+
+    <!-- =================== NEUER ANTRAG =================== -->
+    <section v-else-if="tab==='neu'">
+      <div class="section-head">
+        <p class="eyebrow">02 · Neuer Antrag</p>
+        <h2>Antrag erstellen</h2>
+        <p>
+          Wählen Sie eine aktive Maskendefinition. Der Antrag wird beim Speichern
+          unveränderlich an diese Version gebunden — spätere Versionsänderungen
+          wirken sich nicht auf diesen Antrag aus.
+        </p>
+      </div>
+
+      <div class="paper">
+        <div class="picker-row">
+          <div>
+            <label>Maskendefinition</label>
+            <select v-model="selectedDefId">
+              <option :value="null" disabled>— bitte wählen —</option>
+              <option v-for="d in activeDefinitions" :key="d.id" :value="d.id">
+                {{ d.typ }} · {{ d.version }} · {{ d.titel }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label>Antragsteller</label>
+            <input v-model="antragstellerName" placeholder="z. B. carsten.volmer" />
+          </div>
+        </div>
+      </div>
+
+      <div v-if="selectedDef" class="version-banner">
+        <div>
+          <span class="vlabel">Schema-Bindung</span>
+          <div class="vbig">{{ selectedDef.typ }} · {{ selectedDef.version }}</div>
+        </div>
+        <div class="vmeta">
+          Dieser Antrag wird hart an <strong>{{ selectedDef.typ }} v{{ selectedDef.version }}</strong>
+          gebunden. Auch wenn morgen eine neue Version aktiv wird, bleibt für diesen
+          Antrag exakt die hier abgebildete Maske gültig.
+        </div>
+        <div style="text-align: right;">
+          <span class="vlabel">Pflichtfelder</span>
+          <div style="font-family: var(--font-mono); font-size: 14px;">
+            {{ countRequiredFields(selectedDef.json_schema) }}
+          </div>
+        </div>
+      </div>
+
+      <div v-if="selectedDef" class="paper">
+        <fieldset
+          v-for="group in selectedDef.ui_schema.elements"
+          :key="group.label"
+          class="form-group"
+        >
+          <legend>{{ group.label }}</legend>
+          <div class="form-grid">
+            <div
+              v-for="ctrl in group.elements"
+              :key="ctrl.scope"
+              class="form-field"
+              :class="fieldClass(ctrl, selectedDef.json_schema)"
+            >
+              <label class="flabel">
+                {{ humanize(scopeKey(ctrl.scope)) }}
+                <span class="req" v-if="isRequired(ctrl.scope, selectedDef.json_schema)">*</span>
+              </label>
+              <field-input
+                :field-schema="resolveScope(selectedDef.json_schema, ctrl.scope)"
+                :options="ctrl.options"
+                :model-value="getByPath(formData, scopePath(ctrl.scope))"
+                @update:model-value="setByPath(formData, scopePath(ctrl.scope), $event)"
+              />
+              <div
+                class="hint"
+                v-if="resolveScope(selectedDef.json_schema, ctrl.scope)?.description"
+              >
+                {{ resolveScope(selectedDef.json_schema, ctrl.scope).description }}
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="btn-row">
+          <button class="btn" @click="createAndSubmit" :disabled="!canSubmit">
+            Antrag erstellen &amp; einreichen
+          </button>
+          <button class="btn ghost" @click="createDraftOnly" :disabled="!canSubmit">
+            Nur als Entwurf speichern
+          </button>
+          <div class="spacer"></div>
+          <span style="font-size: 12px; color: var(--quiet);">
+            * Pflichtfeld
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== ANTRAGSLISTE / DETAIL =================== -->
+    <section v-else-if="tab==='antraege'">
+      <!-- LISTE -->
+      <template v-if="!selectedInstanceId">
+        <div class="section-head">
+          <p class="eyebrow">03 · Anträge</p>
+          <h2>Eingegangene Anträge</h2>
+          <p>
+            Jede Zeile zeigt die Schema-Version, an die der Antrag bei seiner Erstellung
+            gebunden wurde. Klicken Sie einen Antrag an, um ihn in genau dieser Version
+            zu öffnen.
+          </p>
+        </div>
+
+        <div v-if="!instances.length" class="empty-state">
+          Noch keine Anträge — erstellen Sie Ihren ersten Antrag im Tab „Neuer Antrag".
+        </div>
+
+        <div v-else class="instance-list">
+          <div
+            v-for="i in instances"
+            :key="i.id"
+            class="instance-row"
+            @click="openInstance(i.id)"
+          >
+            <div>
+              <h4 class="titel">{{ i.daten?.vorhaben?.titel || '(ohne Titel)' }}</h4>
+              <div class="meta">
+                <span class="schemaver">{{ i.schema_version }}</span>
+                ·  ID {{ i.id.slice(0, 8) }}
+                ·  von {{ i.antragsteller }}
+                ·  {{ formatDate(i.erstellt_am) }}
+              </div>
+            </div>
+            <div class="stage-info">
+              {{ stageLabel(i) }}
+            </div>
+            <span class="badge" :class="i.status">{{ i.status }}</span>
+            <div class="ant" style="font-family: var(--font-mono); color: var(--quiet);">→</div>
+          </div>
+        </div>
+      </template>
+
+      <!-- DETAIL -->
+      <template v-else-if="selectedInstance">
+        <button class="detail-back" @click="closeInstance">← Zurück zur Liste</button>
+
+        <div class="section-head">
+          <p class="eyebrow">Antrag · {{ selectedInstance.id.slice(0, 8) }}</p>
+          <h2>{{ selectedInstance.daten?.vorhaben?.titel || '(ohne Titel)' }}</h2>
+          <p>
+            Eingereicht von <strong>{{ selectedInstance.antragsteller }}</strong>
+            am {{ formatDate(selectedInstance.erstellt_am) }}
+          </p>
+        </div>
+
+        <div class="version-banner">
+          <div>
+            <span class="vlabel">Schema-Bindung</span>
+            <div class="vbig">{{ selectedInstance.schema_version }}</div>
+          </div>
+          <div class="vmeta">
+            Diese Ansicht rendert exakt die <strong>{{ selectedInstance.schema_version }}</strong>-
+            Felddefinition, die zum Erstellungszeitpunkt gültig war.
+            Das Schema umfasst <strong>{{ countFields(selectedInstance.json_schema) }} Felder</strong>;
+            spätere Versionen — falls vorhanden — sind hier ohne Wirkung.
+          </div>
+          <div>
+            <span class="badge" :class="selectedInstance.status">{{ selectedInstance.status }}</span>
+          </div>
+        </div>
+
+        <!-- read-only Antragsdaten -->
+        <div class="paper">
+          <fieldset
+            v-for="group in selectedInstance.ui_schema.elements"
+            :key="group.label"
+            class="form-group"
+          >
+            <legend>{{ group.label }}</legend>
+            <dl class="ro-grid">
+              <template v-for="ctrl in group.elements" :key="ctrl.scope">
+                <dt>{{ humanize(scopeKey(ctrl.scope)) }}</dt>
+                <dd>
+                  <span v-if="hasValue(selectedInstance.daten, scopePath(ctrl.scope))">
+                    {{ formatValue(
+                      getByPath(selectedInstance.daten, scopePath(ctrl.scope)),
+                      resolveScope(selectedInstance.json_schema, ctrl.scope)
+                    ) }}
+                  </span>
+                  <span v-else class="empty">— leer —</span>
+                </dd>
+              </template>
+            </dl>
+          </fieldset>
+        </div>
+
+        <!-- timeline -->
+        <div class="paper" style="margin-top: 24px;">
+          <h3 style="font-family: var(--font-display); font-weight: 500; font-size: 24px; margin: 0 0 8px; letter-spacing: -0.01em;">
+            Genehmigungsverlauf
+          </h3>
+          <p style="color: var(--muted); margin: 0; font-size: 13px;">
+            Revisionssichere Historie aller Stage-Entscheidungen.
+          </p>
+
+          <div class="timeline">
+            <div
+              v-for="(step, idx) in timelineSteps"
+              :key="idx"
+              class="timeline-step"
+              :class="step.cls"
+            >
+              <div class="dot"></div>
+              <div>
+                <div class="stage-name">{{ humanize(step.stage) }}</div>
+                <div class="stage-rolle">{{ step.rolle }}</div>
+                <div class="stage-decision" v-if="step.approval">
+                  <span class="badge" :class="badgeForDecision(step.approval.entscheidung)">
+                    {{ step.approval.entscheidung }}
+                  </span>
+                  durch <span class="gen">{{ step.approval.genehmiger }}</span>
+                  <span class="ts">{{ formatDate(step.approval.zeitstempel) }}</span>
+                  <div class="kommentar" v-if="step.approval.kommentar">
+                    {{ step.approval.kommentar }}
+                  </div>
+                </div>
+                <div class="stage-decision" v-else-if="step.cls === 'current'">
+                  <em style="color: var(--warn);">Wartet auf Entscheidung…</em>
+                </div>
+                <div class="stage-decision" v-else style="color: var(--quiet);">
+                  <em>noch nicht erreicht</em>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- approval action -->
+        <div v-if="selectedInstance.status === 'in_pruefung'" class="action-box">
+          <h3>Entscheidung treffen</h3>
+          <div class="stage-meta">
+            Aktuelle Stage: <strong>{{ humanize(selectedInstance.aktuelle_stage) }}</strong>
+            ·  erforderliche Rolle: <strong>{{ currentStageRolle }}</strong>
+          </div>
+          <div class="form-grid" style="margin-top: 0;">
+            <div class="form-field">
+              <label class="flabel">Genehmiger (Name)</label>
+              <input v-model="approvalForm.genehmiger" placeholder="z. B. m.mustermann" />
+            </div>
+            <div class="form-field full">
+              <label class="flabel">Kommentar (optional)</label>
+              <textarea v-model="approvalForm.kommentar" rows="3"
+                placeholder="Begründung der Entscheidung — wird revisionssicher protokolliert"></textarea>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn ok" @click="decide('approved')" :disabled="!approvalForm.genehmiger">
+              Genehmigen
+            </button>
+            <button class="btn warn" @click="decide('returned')" :disabled="!approvalForm.genehmiger">
+              Zur Überarbeitung zurückweisen
+            </button>
+            <button class="btn bad" @click="decide('rejected')" :disabled="!approvalForm.genehmiger">
+              Ablehnen
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="selectedInstance.status === 'entwurf'" class="action-box" style="border-left-color: var(--neutral);">
+          <h3>Entwurf</h3>
+          <div class="stage-meta">
+            Dieser Antrag wurde noch nicht eingereicht.
+          </div>
+          <div class="btn-row">
+            <button class="btn" @click="submitInstance(selectedInstance.id)">
+              Jetzt einreichen
+            </button>
+          </div>
+        </div>
+      </template>
+    </section>
+
+  </main>
+
+  <!-- toast -->
+  <transition name="fade">
+    <div v-if="toast" class="toast" :class="{error: toast.type === 'error'}">
+      {{ toast.message }}
+    </div>
+  </transition>
+</div>
+
+<script>
+  const { createApp, ref, computed, watch, onMounted } = Vue;
+
+  /* --------- Reusable field-input component --------- */
+  const FieldInput = {
+    props: ['fieldSchema', 'options', 'modelValue'],
+    emits: ['update:modelValue'],
+    template: `
+      <select
+        v-if="fieldSchema?.enum"
+        :value="modelValue"
+        @change="$emit('update:modelValue', $event.target.value)"
+      >
+        <option value="" disabled>— bitte wählen —</option>
+        <option v-for="opt in fieldSchema.enum" :key="opt" :value="opt">{{ opt }}</option>
+      </select>
+
+      <div v-else-if="fieldSchema?.type === 'boolean'" style="display:flex; gap:24px; align-items:center; padding-top: 4px;">
+        <label style="display:flex; gap:6px; align-items:center; font-family: var(--font-body); font-size: 14px; cursor: pointer;">
+          <input
+            type="radio"
+            :checked="modelValue === true"
+            @change="$emit('update:modelValue', true)"
+          /> Ja
+        </label>
+        <label style="display:flex; gap:6px; align-items:center; font-family: var(--font-body); font-size: 14px; cursor: pointer;">
+          <input
+            type="radio"
+            :checked="modelValue === false"
+            @change="$emit('update:modelValue', false)"
+          /> Nein
+        </label>
+      </div>
+
+      <input
+        v-else-if="fieldSchema?.format === 'date'"
+        type="date"
+        :value="modelValue"
+        @input="$emit('update:modelValue', $event.target.value)"
+      />
+
+      <textarea
+        v-else-if="options?.multi || (fieldSchema?.minLength && fieldSchema.minLength > 30)"
+        :value="modelValue"
+        @input="$emit('update:modelValue', $event.target.value)"
+        rows="4"
+      ></textarea>
+
+      <input
+        v-else-if="fieldSchema?.type === 'number' || fieldSchema?.type === 'integer'"
+        type="number"
+        :value="modelValue"
+        @input="$emit('update:modelValue', Number($event.target.value))"
+      />
+
+      <input
+        v-else
+        type="text"
+        :value="modelValue"
+        @input="$emit('update:modelValue', $event.target.value)"
+      />
+    `
+  };
+
+  /* --------- App --------- */
+  createApp({
+    components: { FieldInput },
+    setup() {
+      const API = window.location.origin;
+
+      const tab = ref('definitionen');
+      const definitions = ref([]);
+      const instances = ref([]);
+      const toast = ref(null);
+
+      // new application state
+      const selectedDefId = ref(null);
+      const selectedDef = computed(() =>
+        definitions.value.find(d => d.id === selectedDefId.value)
+      );
+      const formData = ref({});
+      const antragstellerName = ref('');
+
+      // detail/approval state
+      const selectedInstanceId = ref(null);
+      const selectedInstance = ref(null);
+      const approvalForm = ref({ genehmiger: '', kommentar: '' });
+
+      const activeDefinitions = computed(() =>
+        definitions.value.filter(d => d.status === 'active')
+      );
+
+      const canSubmit = computed(() =>
+        !!selectedDefId.value && !!antragstellerName.value
+      );
+
+      const currentStageRolle = computed(() => {
+        if (!selectedInstance.value) return '';
+        const def = definitions.value.find(d => d.id === selectedInstance.value.form_definition_id);
+        if (!def) return '';
+        const stage = def.workflow_stages.find(s => s.name === selectedInstance.value.aktuelle_stage);
+        return stage?.rolle || '';
+      });
+
+      const timelineSteps = computed(() => {
+        if (!selectedInstance.value) return [];
+        const def = definitions.value.find(d => d.id === selectedInstance.value.form_definition_id);
+        const stages = def?.workflow_stages || [];
+        const approvals = selectedInstance.value.approvals || [];
+        const currentStage = selectedInstance.value.aktuelle_stage;
+        const status = selectedInstance.value.status;
+
+        return stages.map(s => {
+          const approval = approvals.find(a => a.stage === s.name);
+          let cls = '';
+          if (approval) {
+            cls = approval.entscheidung === 'rejected' ? 'rejected' : 'done';
+          } else if (s.name === currentStage && status === 'in_pruefung') {
+            cls = 'current';
+          }
+          return { stage: s.name, rolle: s.rolle, approval, cls };
+        });
+      });
+
+      /* ----- helpers ----- */
+      function showToast(message, type = 'success') {
+        toast.value = { message, type };
+        setTimeout(() => { toast.value = null; }, 3500);
+      }
+
+      function humanize(s) {
+        if (!s) return '';
+        return s
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/_/g, ' ')
+          .replace(/^./, c => c.toUpperCase())
+          .trim();
+      }
+
+      function formatDate(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return d.toLocaleDateString('de-DE') + ' ' +
+               d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function formatValue(v, schema) {
+        if (v === true) return 'Ja';
+        if (v === false) return 'Nein';
+        if (v === '' || v === null || v === undefined) return '';
+        if (schema?.format === 'date') {
+          try { return new Date(v).toLocaleDateString('de-DE'); } catch { return v; }
+        }
+        return String(v);
+      }
+
+      function hasValue(obj, path) {
+        const v = getByPath(obj, path);
+        return v !== undefined && v !== null && v !== '';
+      }
+
+      function resolveScope(schema, scope) {
+        if (!schema || !scope) return null;
+        const parts = scope.replace(/^#\//, '').split('/');
+        let node = schema;
+        for (const p of parts) {
+          if (!node || typeof node !== 'object') return null;
+          node = node[p];
+        }
+        return node;
+      }
+
+      function scopeKey(scope) {
+        return scope.split('/').pop();
+      }
+
+      function scopePath(scope) {
+        return scope.replace(/^#\//, '').split('/').filter(p => p !== 'properties');
+      }
+
+      function isRequired(scope, schema) {
+        // walk to parent, check if last segment is in its required list
+        const path = scopePath(scope);
+        if (path.length === 0) return false;
+        const fieldName = path[path.length - 1];
+        const parentPath = path.slice(0, -1);
+        let parent = schema;
+        for (const k of parentPath) {
+          parent = parent?.properties?.[k];
+        }
+        return (parent?.required || []).includes(fieldName);
+      }
+
+      function fieldClass(ctrl, schema) {
+        const fs = resolveScope(schema, ctrl.scope);
+        if (ctrl.options?.multi) return 'full';
+        if (fs?.type === 'boolean') return 'full bool';
+        return '';
+      }
+
+      function getByPath(obj, path) {
+        return path.reduce((o, k) => (o == null ? o : o[k]), obj);
+      }
+
+      function setByPath(obj, path, value) {
+        let cur = obj;
+        for (let i = 0; i < path.length - 1; i++) {
+          const k = path[i];
+          if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = {};
+          cur = cur[k];
+        }
+        cur[path[path.length - 1]] = value;
+      }
+
+      function initFormData(schema) {
+        if (!schema) return {};
+        if (schema.type === 'object' && schema.properties) {
+          const obj = {};
+          for (const [k, v] of Object.entries(schema.properties)) {
+            obj[k] = initFormData(v);
+          }
+          return obj;
+        }
+        if (schema.type === 'boolean') return null; // unset
+        return '';
+      }
+
+      function countFields(schema) {
+        if (!schema?.properties) return 0;
+        let n = 0;
+        for (const v of Object.values(schema.properties)) {
+          if (v.type === 'object') n += countFields(v);
+          else n++;
+        }
+        return n;
+      }
+
+      function countRequiredFields(schema) {
+        if (!schema?.properties) return 0;
+        let n = 0;
+        for (const [k, v] of Object.entries(schema.properties)) {
+          if (v.type === 'object') n += countRequiredFields(v);
+          else if ((schema.required || []).includes(k)) n++;
+        }
+        return n;
+      }
+
+      function stageLabel(inst) {
+        if (inst.status === 'genehmigt') return 'abgeschlossen';
+        if (inst.status === 'abgelehnt') return 'abgelehnt';
+        if (inst.status === 'entwurf') return 'Entwurf';
+        return humanize(inst.aktuelle_stage);
+      }
+
+      function badgeForDecision(d) {
+        if (d === 'approved') return 'genehmigt';
+        if (d === 'rejected') return 'abgelehnt';
+        return 'zurueckgewiesen';
+      }
+
+      /* ----- API calls ----- */
+      async function loadDefinitions() {
+        try {
+          const r = await fetch(`${API}/definitions`);
+          if (!r.ok) throw new Error(`Definitionen konnten nicht geladen werden (HTTP ${r.status})`);
+          definitions.value = await r.json();
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+
+      async function loadInstances() {
+        // No list endpoint in skeleton — derive from approvals or maintain client-side.
+        // For demo, we keep a localStorage cache of instance IDs we've created/seen.
+        const ids = JSON.parse(localStorage.getItem('idv-known-instances') || '[]');
+        const fetched = [];
+        for (const id of ids) {
+          try {
+            const r = await fetch(`${API}/instances/${id}`);
+            if (r.ok) fetched.push(await r.json());
+          } catch {}
+        }
+        instances.value = fetched.sort((a, b) =>
+          new Date(b.erstellt_am) - new Date(a.erstellt_am)
+        );
+      }
+
+      function rememberInstance(id) {
+        const ids = JSON.parse(localStorage.getItem('idv-known-instances') || '[]');
+        if (!ids.includes(id)) {
+          ids.push(id);
+          localStorage.setItem('idv-known-instances', JSON.stringify(ids));
+        }
+      }
+
+      async function createDraftOnly() {
+        return _create({ submit: false });
+      }
+      async function createAndSubmit() {
+        return _create({ submit: true });
+      }
+
+      async function _create({ submit }) {
+        try {
+          const r = await fetch(`${API}/instances`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              form_definition_id: selectedDefId.value,
+              daten: formData.value,
+              antragsteller: antragstellerName.value,
+            }),
+          });
+          if (!r.ok) {
+            const err = await r.json();
+            throw new Error(err.detail || `HTTP ${r.status}`);
+          }
+          const created = await r.json();
+          rememberInstance(created.id);
+
+          if (submit) {
+            const r2 = await fetch(`${API}/instances/${created.id}/submit`, { method: 'POST' });
+            if (!r2.ok) {
+              const err = await r2.json();
+              throw new Error(err.detail || `HTTP ${r2.status}`);
+            }
+          }
+          showToast(submit
+            ? 'Antrag erstellt und eingereicht.'
+            : 'Antrag als Entwurf gespeichert.');
+          await loadInstances();
+          openInstance(created.id);
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+
+      async function submitInstance(id) {
+        try {
+          const r = await fetch(`${API}/instances/${id}/submit`, { method: 'POST' });
+          if (!r.ok) {
+            const err = await r.json();
+            throw new Error(err.detail || `HTTP ${r.status}`);
+          }
+          showToast('Antrag eingereicht.');
+          await refreshSelected();
+          await loadInstances();
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+
+      async function decide(entscheidung) {
+        try {
+          const r = await fetch(`${API}/instances/${selectedInstance.value.id}/decide`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              genehmiger: approvalForm.value.genehmiger,
+              rolle: currentStageRolle.value,
+              entscheidung,
+              kommentar: approvalForm.value.kommentar || null,
+            }),
+          });
+          if (!r.ok) {
+            const err = await r.json();
+            throw new Error(err.detail || `HTTP ${r.status}`);
+          }
+          showToast({
+            approved: 'Entscheidung: genehmigt.',
+            rejected: 'Entscheidung: abgelehnt.',
+            returned: 'Antrag zur Überarbeitung zurückgewiesen.',
+          }[entscheidung]);
+          approvalForm.value = { genehmiger: '', kommentar: '' };
+          await refreshSelected();
+          await loadInstances();
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+
+      async function openInstance(id) {
+        selectedInstanceId.value = id;
+        await refreshSelected();
+        tab.value = 'antraege';
+      }
+      async function refreshSelected() {
+        if (!selectedInstanceId.value) return;
+        try {
+          const r = await fetch(`${API}/instances/${selectedInstanceId.value}`);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          selectedInstance.value = await r.json();
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+      function closeInstance() {
+        selectedInstanceId.value = null;
+        selectedInstance.value = null;
+      }
+
+      function goNew() {
+        closeInstance();
+        tab.value = 'neu';
+        // pre-pick the first active definition
+        if (!selectedDefId.value && activeDefinitions.value.length) {
+          selectedDefId.value = activeDefinitions.value[0].id;
+        }
+      }
+      function goList() {
+        closeInstance();
+        tab.value = 'antraege';
+        loadInstances();
+      }
+
+      /* re-init form data whenever the picked definition changes */
+      watch(selectedDefId, (newId) => {
+        const def = definitions.value.find(d => d.id === newId);
+        if (def) formData.value = initFormData(def.json_schema);
+      });
+
+      onMounted(async () => {
+        await loadDefinitions();
+        await loadInstances();
+      });
+
+      return {
+        tab, definitions, instances, toast,
+        selectedDefId, selectedDef, formData, antragstellerName,
+        activeDefinitions, canSubmit,
+        selectedInstanceId, selectedInstance, approvalForm,
+        currentStageRolle, timelineSteps,
+        // helpers exposed to template
+        humanize, formatDate, formatValue, hasValue,
+        resolveScope, scopeKey, scopePath, isRequired, fieldClass,
+        getByPath, setByPath, countFields, countRequiredFields,
+        stageLabel, badgeForDecision,
+        // actions
+        createDraftOnly, createAndSubmit, submitInstance, decide,
+        openInstance, closeInstance, goNew, goList,
+      };
+    }
+  }).mount('#app');
+</script>
+
+</body>
+</html>

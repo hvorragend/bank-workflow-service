@@ -1,0 +1,43 @@
+{
+  "type": "VerticalLayout",
+  "elements": [
+    {
+      "type": "Group",
+      "label": "Antragsteller",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/antragsteller/properties/name" },
+        { "type": "Control", "scope": "#/properties/antragsteller/properties/abteilung" },
+        { "type": "Control", "scope": "#/properties/antragsteller/properties/datum" }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Vorhaben",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/vorhaben/properties/titel" },
+        { "type": "Control", "scope": "#/properties/vorhaben/properties/kategorie" }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Wesentlichkeitskriterien",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/wesentlichkeitskriterien/properties/ertragsrelevanz" },
+        { "type": "Control", "scope": "#/properties/wesentlichkeitskriterien/properties/risikorelevanz" },
+        { "type": "Control", "scope": "#/properties/wesentlichkeitskriterien/properties/aufsichtsrechtlicheRelevanz" }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Ergebnis",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/ergebnis/properties/wesentlich" },
+        {
+          "type": "Control",
+          "scope": "#/properties/ergebnis/properties/begruendung",
+          "options": { "multi": true }
+        }
+      ]
+    }
+  ]
+}
