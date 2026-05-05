@@ -136,3 +136,23 @@ class Attachment(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     instance: Mapped[FormInstance] = relationship()
+
+
+class ApiToken(Base):
+    """API-Token fuer Reporting-Endpunkte (Aufsicht / Revision).
+
+    Klartext ist nur einmalig beim POST sichtbar — anschliessend liegt nur der
+    SHA-256-Hash in der DB. Tokens haben Scopes (typischerweise ['reporting:read'])
+    und koennen widerrufen werden (revoked_at gesetzt).
+    """
+    __tablename__ = "api_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    scopes: Mapped[list[str]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_by: Mapped[str] = mapped_column(String(100))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

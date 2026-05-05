@@ -18,6 +18,7 @@ from .. import audit, models, schemas
 from ..auth.dependencies import require_role
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
+from ..reporting.security import generate_token, hash_token
 from .diff import diff_schemas, summarize
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -180,6 +181,97 @@ def retire(
     db.commit()
     db.refresh(d)
     return d
+
+
+# ---------- Reporting-API-Token-Verwaltung ----------
+
+@router.post("/reporting-tokens", status_code=201)
+def create_reporting_token(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_role("Admin")),
+) -> dict:
+    """Erzeugt einen neuen Reporting-Token. Der Klartext wird einmalig in der
+    Antwort zurueckgegeben — danach ist er nicht mehr rekonstruierbar."""
+    name = (payload or {}).get("name")
+    if not name:
+        raise HTTPException(400, "Feld 'name' ist Pflicht.")
+    expires_iso = (payload or {}).get("expires_at")
+    expires_at = None
+    if expires_iso:
+        try:
+            expires_at = datetime.fromisoformat(expires_iso.replace("Z", "+00:00"))
+        except ValueError as e:
+            raise HTTPException(400, f"expires_at ungueltig: {e}") from e
+
+    raw = generate_token()
+    tok = models.ApiToken(
+        token_hash=hash_token(raw),
+        name=name,
+        scopes=["reporting:read"],
+        created_by=user.username,
+        expires_at=expires_at,
+    )
+    db.add(tok)
+    audit.write_event(
+        db, kategorie="admin", action="reporting_token.created",
+        akteur=user.username, target_type="ApiToken", target_id=tok.id,
+        ip=_client_ip(request),
+        payload={"name": name, "expires_at": expires_iso},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(tok)
+    return {
+        "id": tok.id,
+        "name": tok.name,
+        "scopes": tok.scopes,
+        "created_at": tok.created_at,
+        "expires_at": tok.expires_at,
+        "token": raw,
+        "_warning": "Dieser Token ist NUR EINMAL sichtbar. Bitte sicher aufbewahren.",
+    }
+
+
+@router.get("/reporting-tokens")
+def list_reporting_tokens(
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_role("Admin")),
+) -> list[dict]:
+    rows = list(db.scalars(select(models.ApiToken).order_by(models.ApiToken.created_at.desc())).all())
+    return [
+        {
+            "id": t.id, "name": t.name, "scopes": t.scopes,
+            "created_at": t.created_at, "created_by": t.created_by,
+            "expires_at": t.expires_at, "last_used_at": t.last_used_at,
+            "revoked_at": t.revoked_at,
+        }
+        for t in rows
+    ]
+
+
+@router.delete("/reporting-tokens/{token_id}", status_code=204)
+def revoke_reporting_token(
+    token_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_role("Admin")),
+):
+    tok = db.get(models.ApiToken, token_id)
+    if not tok:
+        raise HTTPException(404, "Token nicht gefunden.")
+    if tok.revoked_at:
+        return
+    tok.revoked_at = datetime.utcnow()
+    audit.write_event(
+        db, kategorie="admin", action="reporting_token.revoked",
+        akteur=user.username, target_type="ApiToken", target_id=tok.id,
+        ip=_client_ip(request),
+        payload={"name": tok.name},
+        commit=False,
+    )
+    db.commit()
 
 
 # ---------- Audit-Log ----------

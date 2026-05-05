@@ -28,6 +28,7 @@ from . import models
 from .admin import router as admin_router
 from .auth import router as auth_router
 from .database import Base, SessionLocal, engine
+from .reporting import router as reporting_router
 from .routers import attachments, definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
@@ -294,6 +295,7 @@ app.include_router(definitions.router)
 app.include_router(instances.router)
 app.include_router(attachments.router)
 app.include_router(admin_router.router)
+app.include_router(reporting_router.router)
 
 
 @app.get("/", tags=["meta"])

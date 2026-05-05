@@ -55,8 +55,13 @@ class AuthSettings(BaseSettings):
     # local | ldap | both — siehe README.
     auth_mode: Literal["local", "ldap", "both"] = "local"
 
-    # JWT-Schluessel ist Pflicht. Im Test wird er ueber TESTING-Mode automatisch gesetzt.
+    # JWT-Schluessel. Pflicht; im Test wird er ueber conftest gesetzt.
+    # Schluesselrotation: JWT_SECRETS kann eine komma-separierte Liste enthalten —
+    # das erste Element wird zum Signieren verwendet, alle anderen werden beim
+    # Verify ebenfalls akzeptiert. So lassen sich Keys rotieren, ohne aktive
+    # Sessions zu invalidieren.
     jwt_secret: str = ""
+    jwt_secrets: str = ""  # optional: "neuestes,zweitneuestes,…"
     jwt_algorithm: str = "HS256"
     jwt_access_lifetime_minutes: int = 30
     jwt_refresh_lifetime_hours: int = 8
@@ -77,12 +82,27 @@ class AuthSettings(BaseSettings):
 def get_settings() -> AuthSettings:
     """Settings als Singleton (eine Instanz pro Prozess)."""
     s = AuthSettings()
-    if not s.jwt_secret:
+    # Mindestens ein Secret muss gesetzt sein — entweder als Singleton (jwt_secret)
+    # oder als Liste (jwt_secrets, komma-separiert).
+    if not s.jwt_secret and not s.jwt_secrets.strip():
         raise RuntimeError(
-            "JWT_SECRET ist nicht gesetzt. Setze die Umgebungsvariable, z. B. mit "
+            "JWT_SECRET (oder JWT_SECRETS als Liste) ist nicht gesetzt. "
+            "Setze die Umgebungsvariable, z. B. mit "
             "JWT_SECRET=$(openssl rand -hex 32) — siehe README."
         )
     return s
+
+
+def jwt_secret_keys(s: AuthSettings) -> list[str]:
+    """Gibt die akzeptierten Secrets zurueck. Erstes = Sign-Key, der Rest =
+    nur fuer Verify (Rotation)."""
+    keys: list[str] = []
+    if s.jwt_secrets.strip():
+        keys.extend([k.strip() for k in s.jwt_secrets.split(",") if k.strip()])
+    if s.jwt_secret and s.jwt_secret not in keys:
+        # Fallback: wenn nur das Singleton gesetzt ist, ist es zugleich der Sign-Key.
+        keys.append(s.jwt_secret)
+    return keys
 
 
 def reset_settings_cache() -> None:
