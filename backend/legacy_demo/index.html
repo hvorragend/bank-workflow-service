@@ -1294,8 +1294,10 @@
         }
         m = text.match(/is too short \(Pfad: ([^)]*)\)/);
         if (m) {
-          const feld = humanize(m[1].split('/').pop());
-          return `Eingabe im Feld „${feld}" ist zu kurz.`;
+          const parts = m[1].split('/').filter(Boolean);
+          const feld = humanize(parts[parts.length - 1] ?? '');
+          const grp = parts.length >= 2 ? humanize(parts[parts.length - 2] ?? '') : 'Hauptebene';
+          return `Eingabe im Feld „${feld}" (in „${grp}") ist zu kurz.`;
         }
         m = text.match(/is not one of \[([^\]]+)\] \(Pfad: ([^)]*)\)/);
         if (m) {

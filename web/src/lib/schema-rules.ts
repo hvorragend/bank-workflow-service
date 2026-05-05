@@ -130,7 +130,10 @@ export function humanizeBackendError(detail: string | undefined): string {
     return `Pflichtfeld nicht ausgefuellt: „${feld}" (in „${grp}").`;
   }
   if ((m = detail.match(/is too short \(Pfad: ([^)]*)\)/))) {
-    return `Eingabe im Feld „${humanize(m[1].split("/").pop() ?? "")}" ist zu kurz.`;
+    const parts = m[1].split("/").filter(Boolean);
+    const feld = humanize(parts[parts.length - 1] ?? "");
+    const grp = parts.length >= 2 ? humanize(parts[parts.length - 2] ?? "") : "Hauptebene";
+    return `Eingabe im Feld „${feld}" (in „${grp}") ist zu kurz.`;
   }
   if ((m = detail.match(/is not one of \[([^\]]+)\] \(Pfad: ([^)]*)\)/))) {
     return `Ungueltige Auswahl im Feld „${humanize(m[2].split("/").pop() ?? "")}".`;
