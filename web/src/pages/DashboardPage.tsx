@@ -39,19 +39,19 @@ export function DashboardPage() {
 
   return (
     <section>
-      <header className="mb-10 max-w-[720px]">
+      <header className="page-header">
         <p className="eyebrow mb-3">Aktuelles</p>
-        <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
+        <h2 className="page-title">
           Guten Tag, {userName}.
         </h2>
-        <p className="mt-4 text-[15.5px] text-muted">
+        <p className="page-lead">
           Hier sehen Sie auf einen Blick, was Ihre Aufmerksamkeit braucht — und
           wie sich die Antragsbearbeitung in den letzten Tagen entwickelt hat.
         </p>
       </header>
 
-      {/* Vier Kennzahlen-Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+      {/* Vier Kennzahlen-Kacheln */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10">
         <Tile
           label="Wartet auf mich"
           value={stats?.waiting_for_me ?? "—"}
@@ -75,7 +75,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <ListCard
           title="Wartet auf meine Entscheidung"
           empty="Keine Antraege benoetigen aktuell Ihre Entscheidung."
@@ -101,27 +101,29 @@ export function DashboardPage() {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="paper mt-10">
-          <h3 className="font-display font-display font-medium text-2xl tracking-tightish m-0">
+        <div className="paper mt-8 sm:mt-10">
+          <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0">
             Verteilung offener Antraege je Stage
           </h3>
-          <p className="text-[13px] text-muted mt-1 mb-6">
+          <p className="text-[13px] text-muted mt-1 mb-5 sm:mb-6">
             Wo stehen die in_pruefung-Antraege gerade in der Genehmigungskette?
           </p>
-          <div className="h-64">
+          <div className="h-56 sm:h-64 -mx-2 sm:mx-0">
             <ResponsiveContainer>
-              <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <XAxis dataKey="stage" tick={{ fill: "hsl(35 6% 41%)", fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fill: "hsl(35 6% 41%)", fontSize: 12 }} />
+              <BarChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                <XAxis dataKey="stage" tick={{ fill: "hsl(215 14% 38%)", fontSize: 12 }} interval={0} />
+                <YAxis allowDecimals={false} tick={{ fill: "hsl(215 14% 38%)", fontSize: 12 }} width={28} />
                 <Tooltip
-                  cursor={{ fill: "hsl(43 30% 87%)" }}
+                  cursor={{ fill: "hsl(212 60% 94%)" }}
                   contentStyle={{
                     background: "white",
-                    border: "1px solid hsl(40 18% 80%)",
+                    border: "1px solid hsl(214 15% 88%)",
+                    borderRadius: "8px",
                     fontSize: "12px",
+                    boxShadow: "0 8px 24px -8px rgb(15 23 42 / 0.18)",
                   }}
                 />
-                <Bar dataKey="Anzahl" fill="hsl(0 53% 31%)" />
+                <Bar dataKey="Anzahl" fill="hsl(212 100% 21%)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -129,9 +131,9 @@ export function DashboardPage() {
       )}
 
       {stats?.avg_decision_days != null && (
-        <div className="mt-6 border-l-2 border-rule bg-bg px-5 py-4 text-[13px] text-muted">
+        <div className="hint hint-info mt-6">
           Durchschnittliche Bearbeitungsdauer (genehmigte Antraege):{" "}
-          <strong className="text-ink font-medium">
+          <strong className="text-ink font-semibold">
             {stats.avg_decision_days.toFixed(1)} Tage
           </strong>
         </div>
@@ -149,17 +151,12 @@ interface TileProps {
 
 function Tile({ label, value, icon, accent = false }: TileProps) {
   return (
-    <div
-      className={cn(
-        "border border-rule bg-paper px-6 py-5",
-        accent && "border-l-2 border-l-accent",
-      )}
-    >
+    <div className={cn("stat-tile", accent && "stat-tile-accent")}>
       <div className="flex items-center gap-2 text-quiet">
-        <span>{icon}</span>
-        <span className="label-mono">{label}</span>
+        <span className={cn(accent && "text-accent")}>{icon}</span>
+        <span className="label-mono leading-tight">{label}</span>
       </div>
-      <div className="mt-2 font-display font-display font-medium text-[34px] leading-none tracking-tightish text-ink">
+      <div className="mt-2 font-display font-semibold text-[26px] sm:text-[30px] lg:text-[34px] leading-none tracking-tightish text-ink">
         {value}
       </div>
     </div>
@@ -176,23 +173,23 @@ interface ListCardProps {
 
 function ListCard({ title, empty, items, linkLabel, linkTo }: ListCardProps) {
   return (
-    <div className="paper">
-      <h3 className="font-display font-display font-medium text-xl tracking-tightish m-0">
+    <div className="paper flex flex-col">
+      <h3 className="font-display font-semibold text-lg sm:text-xl tracking-tightish m-0">
         {title}
       </h3>
-      <ul className="mt-4 divide-y divide-rule-soft">
+      <ul className="mt-3 sm:mt-4 divide-y divide-rule-soft flex-1">
         {items && items.length > 0 ? (
           items.map((i) => (
-            <li key={i.id} className="py-3">
+            <li key={i.id} className="py-2.5 first:pt-0">
               <Link
                 to={`/antraege/${i.id}`}
-                className="block hover:bg-bg -mx-2 px-2 py-1.5 transition"
+                className="block rounded-md hover:bg-bg -mx-2 px-2 py-2 transition-colors"
               >
-                <div className="text-[14px] text-ink leading-snug">{instanceTitle(i)}</div>
-                <div className="mt-1 font-mono text-[11px] text-quiet">
-                  <span className="text-accent">{i.schema_version}</span> ·{" "}
-                  <span className={`badge badge-${i.status} mr-1`}>{i.status}</span>
-                  · {formatDate(i.erstellt_am)}
+                <div className="text-[14px] text-ink leading-snug font-medium">{instanceTitle(i)}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-quiet">
+                  <span className="text-accent">{i.schema_version}</span>
+                  <span className={`badge badge-${i.status}`}>{i.status}</span>
+                  <span>{formatDate(i.erstellt_am)}</span>
                 </div>
               </Link>
             </li>

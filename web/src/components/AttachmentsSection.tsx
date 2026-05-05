@@ -55,10 +55,10 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
   }
 
   return (
-    <div className="paper mt-6 no-print">
-      <div className="flex items-baseline justify-between gap-4">
+    <div className="paper mt-4 sm:mt-6 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h3 className="font-display font-display font-medium text-2xl tracking-tightish m-0 inline-flex items-center gap-2">
+          <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0 inline-flex items-center gap-2">
             <Paperclip size={20} /> Anhaenge
           </h3>
           <p className="text-[13px] text-muted mt-1">
@@ -66,7 +66,7 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
           </p>
         </div>
         {!readOnly && (
-          <button className="btn inline-flex items-center gap-2 whitespace-nowrap" onClick={() => fileInput.current?.click()}>
+          <button className="btn whitespace-nowrap self-start" onClick={() => fileInput.current?.click()}>
             <Upload size={14} /> Datei hinzufuegen
           </button>
         )}
@@ -83,8 +83,8 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
       {!readOnly && (
         <div
           className={cn(
-            "mt-5 border border-dashed border-rule px-6 py-10 text-center text-sm text-muted",
-            dragActive && "bg-bg border-accent",
+            "mt-5 rounded-lg border border-dashed border-rule px-6 py-8 sm:py-10 text-center text-sm text-muted transition-colors",
+            dragActive && "bg-accent-soft border-accent",
           )}
           onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
@@ -104,28 +104,31 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
           <li className="py-6 text-quiet italic text-sm">Noch keine Anhaenge.</li>
         )}
         {items?.map((a: Attachment) => (
-          <li key={a.id} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 py-3">
-            <FileText size={18} className="text-muted" />
-            <div>
+          <li key={a.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto] items-center gap-3 sm:gap-4 py-3">
+            <FileText size={18} className="text-muted shrink-0" />
+            <div className="min-w-0">
               <a
                 href={attachmentDownloadUrl(instanceId, a.id)}
-                className="text-ink hover:text-accent text-[14px]"
+                className="block text-ink hover:text-accent text-[14px] truncate font-medium"
                 download={a.filename}
               >
                 {a.filename}
               </a>
-              <div className="font-mono text-[11px] text-quiet mt-0.5">
-                {(a.size_bytes / 1024).toFixed(1)} KB ·  SHA-256 {a.sha256.slice(0, 12)}…
-                ·  hochgeladen von {a.uploaded_by} am {formatDate(a.uploaded_at)}
+              <div className="font-mono text-[11px] text-quiet mt-0.5 truncate">
+                {(a.size_bytes / 1024).toFixed(1)} KB · SHA-256 {a.sha256.slice(0, 12)}…
+                <span className="hidden sm:inline">
+                  {" · "}hochgeladen von {a.uploaded_by} am {formatDate(a.uploaded_at)}
+                </span>
               </div>
             </div>
             <a
               href={attachmentDownloadUrl(instanceId, a.id)}
               download={a.filename}
-              className="text-muted hover:text-accent inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider"
+              className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft"
               title="Herunterladen"
+              aria-label="Herunterladen"
             >
-              <Download size={14} />
+              <Download size={16} />
             </a>
             {!readOnly && (
               <button
@@ -133,10 +136,11 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
                   if (confirm(`Anhang "${a.filename}" wirklich loeschen?`)) deleteMut.mutate(a.id);
                 }}
                 disabled={deleteMut.isPending}
-                className="text-muted hover:text-bad inline-flex items-center gap-1"
+                className="col-start-3 sm:col-auto text-muted hover:text-bad inline-flex items-center justify-center p-1.5 rounded-md hover:bg-bad-soft"
                 title="Loeschen"
+                aria-label="Loeschen"
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
               </button>
             )}
           </li>

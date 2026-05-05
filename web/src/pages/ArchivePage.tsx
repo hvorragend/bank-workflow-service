@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, SlidersHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { exportInstancesCsv, listDefinitions, listInstances, type ListInstancesParams } from "@/api/endpoints";
@@ -18,10 +18,11 @@ export function ArchivePage() {
   const { show } = useToast();
   const [typ, setTyp] = useState<string>("");
   const [version, setVersion] = useState<string>("");
-  const [status, setStatus] = useState<string>(""); // "" = alle abgeschlossenen
+  const [status, setStatus] = useState<string>("");
   const [createdFrom, setCreatedFrom] = useState<string>("");
   const [createdTo, setCreatedTo] = useState<string>("");
   const [sort, setSort] = useState<"created_desc" | "created_asc" | "updated_desc">("created_desc");
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const { data: defs } = useQuery({
     queryKey: ["definitions"],
@@ -69,107 +70,143 @@ export function ArchivePage() {
     }
   }
 
+  const filterPanel = (
+    <>
+      <p className="eyebrow mb-4">Filter</p>
+      <div className="space-y-4">
+        <div>
+          <label className="label-mono mb-1.5 block">Typ</label>
+          <select className="input" value={typ} onChange={(e) => { setTyp(e.target.value); setVersion(""); }}>
+            <option value="">Alle</option>
+            {typen.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label-mono mb-1.5 block">Version</label>
+          <select className="input" value={version} onChange={(e) => setVersion(e.target.value)} disabled={!typ}>
+            <option value="">Alle</option>
+            {versionen.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label-mono mb-1.5 block">Status</label>
+          <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Alle abgeschlossenen</option>
+            <option value="genehmigt">genehmigt</option>
+            <option value="abgelehnt">abgelehnt</option>
+            <option value="zurueckgewiesen">zurueckgewiesen</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label-mono mb-1.5 block">Von</label>
+            <input type="date" className="input" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label-mono mb-1.5 block">Bis</label>
+            <input type="date" className="input" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="label-mono mb-1.5 block">Sortierung</label>
+          <select className="input" value={sort} onChange={(e) => setSort(e.target.value as any)}>
+            <option value="created_desc">Erstellt (neueste zuerst)</option>
+            <option value="created_asc">Erstellt (aelteste zuerst)</option>
+            <option value="updated_desc">Zuletzt bewegt</option>
+          </select>
+        </div>
+      </div>
+      <button onClick={onExport} className="btn btn-ghost mt-6 w-full">
+        <Download size={14} /> Als CSV exportieren
+      </button>
+    </>
+  );
+
   return (
     <section>
-      <header className="mb-10 max-w-[720px]">
+      <header className="page-header">
         <p className="eyebrow mb-3">Archiv</p>
-        <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
-          Abgeschlossene Antraege
-        </h2>
-        <p className="mt-4 text-[15.5px] text-muted">
+        <h2 className="page-title">Abgeschlossene Antraege</h2>
+        <p className="page-lead">
           Hier finden Sie alle genehmigten, abgelehnten und zurueckgewiesenen
           Antraege. Filter nach Typ, Version, Datum oder Status — Export als
           CSV fuer die Revision.
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
-        {/* Filter-Sidebar */}
-        <aside className="paper p-6 lg:sticky lg:top-32 lg:self-start">
-          <p className="eyebrow mb-4">Filter</p>
-          <div className="space-y-4">
-            <div>
-              <label className="label-mono mb-1.5 block">Typ</label>
-              <select className="input" value={typ} onChange={(e) => { setTyp(e.target.value); setVersion(""); }}>
-                <option value="">Alle</option>
-                {typen.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label-mono mb-1.5 block">Version</label>
-              <select className="input" value={version} onChange={(e) => setVersion(e.target.value)} disabled={!typ}>
-                <option value="">Alle</option>
-                {versionen.map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label-mono mb-1.5 block">Status</label>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">Alle abgeschlossenen</option>
-                <option value="genehmigt">genehmigt</option>
-                <option value="abgelehnt">abgelehnt</option>
-                <option value="zurueckgewiesen">zurueckgewiesen</option>
-              </select>
-            </div>
-            <div>
-              <label className="label-mono mb-1.5 block">Erstellt von</label>
-              <input type="date" className="input" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)} />
-            </div>
-            <div>
-              <label className="label-mono mb-1.5 block">Erstellt bis</label>
-              <input type="date" className="input" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} />
-            </div>
-            <div>
-              <label className="label-mono mb-1.5 block">Sortierung</label>
-              <select className="input" value={sort} onChange={(e) => setSort(e.target.value as any)}>
-                <option value="created_desc">Erstellt (neueste zuerst)</option>
-                <option value="created_asc">Erstellt (aelteste zuerst)</option>
-                <option value="updated_desc">Zuletzt bewegt</option>
-              </select>
-            </div>
-          </div>
-          <button onClick={onExport} className="btn btn-ghost mt-6 w-full inline-flex items-center justify-center gap-2">
-            <Download size={14} /> Als CSV exportieren
-          </button>
+      {/* Mobile-Filter-Toggle */}
+      <div className="lg:hidden mb-4 flex items-center justify-between gap-3">
+        <button
+          onClick={() => setFilterOpen((v) => !v)}
+          className="btn btn-ghost"
+          aria-expanded={filterOpen}
+        >
+          <SlidersHorizontal size={14} />
+          {filterOpen ? "Filter ausblenden" : "Filter anzeigen"}
+        </button>
+        <span className="text-[12px] text-quiet">
+          {isLoading ? "Lade …" : `${instances?.length ?? 0} Eintraege`}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 lg:gap-8">
+        {/* Filter-Sidebar (Desktop) */}
+        <aside className="hidden lg:block paper lg:sticky lg:top-32 lg:self-start">
+          {filterPanel}
         </aside>
+        {/* Filter-Panel (Mobile, ein-/ausklappbar) */}
+        {filterOpen && (
+          <aside className="lg:hidden paper">
+            {filterPanel}
+          </aside>
+        )}
 
         {/* Liste */}
         <div>
-          <p className="text-[12px] text-quiet mb-3">
+          <p className="hidden lg:block text-[12px] text-quiet mb-3">
             {isLoading ? "Lade …" : `${instances?.length ?? 0} Eintraege`}
           </p>
           {isLoading && (
-            <div className="border border-dashed border-rule py-20 text-center text-muted italic">
+            <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
               Lade Archiv …
             </div>
           )}
           {instances && instances.length === 0 && (
-            <div className="border border-dashed border-rule py-20 text-center text-muted italic">
+            <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
               Keine Eintraege fuer diese Filter.
             </div>
           )}
           {instances && instances.length > 0 && (
-            <div className="flex flex-col">
+            <div className="list-card">
               {instances.map((i) => (
                 <Link
                   key={i.id}
                   to={`/antraege/${i.id}`}
-                  className="grid grid-cols-[1fr_auto_auto] gap-8 items-center px-6 py-5 border border-rule -mb-px last:mb-0 bg-paper hover:bg-[#fdfaf3] transition cursor-pointer"
+                  className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto] items-center gap-x-4 sm:gap-x-6 gap-y-2 px-4 sm:px-6 py-4 sm:py-5 bg-paper hover:bg-bg transition-colors cursor-pointer"
                 >
-                  <div>
-                    <h4 className="font-display font-display font-medium text-[16px] tracking-tightish m-0">
+                  <div className="min-w-0">
+                    <h4 className="font-display font-semibold text-[15px] sm:text-[16px] tracking-tightish m-0 truncate">
                       {instanceTitle(i)}
                     </h4>
-                    <div className="mt-1 font-mono text-[11px] text-quiet">
-                      <span className="text-accent">{i.schema_version}</span>{" "}
-                      ·  ID {i.id.slice(0, 8)} ·  von {i.antragsteller}
-                      {i.abgeschlossen_am && ` ·  abgeschlossen ${formatDate(i.abgeschlossen_am)}`}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-quiet">
+                      <span className="text-accent">{i.schema_version}</span>
+                      <span>·</span>
+                      <span>{i.id.slice(0, 8)}</span>
+                      <span>·</span>
+                      <span className="truncate max-w-[160px]">von {i.antragsteller}</span>
+                      {i.abgeschlossen_am && (
+                        <>
+                          <span>·</span>
+                          <span>abgeschlossen {formatDate(i.abgeschlossen_am)}</span>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div className="font-mono text-[11px] uppercase tracking-wider text-muted">
+                  <span className={`badge badge-${i.status} sm:hidden justify-self-end`}>{i.status}</span>
+                  <div className="hidden sm:block font-mono text-[11px] uppercase tracking-wider text-muted whitespace-nowrap">
                     {humanize(i.aktuelle_stage)}
                   </div>
-                  <span className={`badge badge-${i.status}`}>{i.status}</span>
+                  <span className={`badge badge-${i.status} hidden sm:inline-flex`}>{i.status}</span>
                 </Link>
               ))}
             </div>

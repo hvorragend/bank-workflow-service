@@ -96,7 +96,6 @@ export function InstanceDetailPage() {
     return { stage: s.name, rolle: s.rolle, approval: a, cls };
   });
 
-  // SLA-Status fuer die aktuelle Stage berechnen
   const currentStageDef = stages.find((s) => s.name === currentStage);
   const slaDays = currentStageDef?.sla_days ?? 14;
   let waitingDays: number | null = null;
@@ -119,14 +118,13 @@ export function InstanceDetailPage() {
         </button>
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 border border-rule px-3 py-1.5 text-xs text-muted hover:bg-ink hover:text-paper hover:border-ink transition"
+          className="inline-flex items-center gap-1.5 rounded-md border border-rule px-3 py-1.5 text-xs text-muted hover:bg-accent hover:text-paper hover:border-accent transition-colors"
           title="Als PDF drucken (Browser-Druckdialog)"
         >
-          <Printer size={14} /> Drucken / als PDF
+          <Printer size={14} /> <span className="hidden sm:inline">Drucken / als PDF</span>
         </button>
       </div>
 
-      {/* Print-only Header — wenn man die Seite druckt, soll das Dokument oben Identitaet zeigen */}
       <div className="print-only mb-6">
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted">Bank Workflow Service · Antragsbeleg</p>
         <p className="font-mono text-[10px] text-muted">
@@ -134,30 +132,28 @@ export function InstanceDetailPage() {
         </p>
       </div>
 
-      <header className="mb-10 max-w-[720px]">
+      <header className="page-header">
         <p className="eyebrow mb-3">Antrag · {instance.id.slice(0, 8)}</p>
-        <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
-          {instanceTitle(instance)}
-        </h2>
-        <p className="mt-4 text-[15.5px] text-muted">
-          Eingereicht von <strong className="text-ink font-medium">{instance.antragsteller}</strong>{" "}
+        <h2 className="page-title">{instanceTitle(instance)}</h2>
+        <p className="page-lead">
+          Eingereicht von <strong className="text-ink font-semibold">{instance.antragsteller}</strong>{" "}
           am {formatDate(instance.erstellt_am)}
         </p>
       </header>
 
-      <div className="grid grid-cols-[auto_1fr_auto] gap-7 items-center border border-rule border-l-2 border-l-accent bg-paper px-8 py-6 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] gap-4 sm:gap-7 items-start sm:items-center rounded-lg border border-rule border-l-[3px] border-l-accent bg-paper shadow-card px-5 sm:px-8 py-5 sm:py-6 mb-6 sm:mb-10">
         <div>
           <span className="label-mono block mb-1">Schema-Bindung</span>
-          <div className="font-mono text-[22px] text-accent tracking-tight">
+          <div className="font-display font-semibold text-[18px] sm:text-[22px] text-accent tracking-tight">
             {instance.schema_version}
           </div>
         </div>
-        <div className="text-[13.5px] text-muted leading-relaxed">
-          Diese Ansicht rendert exakt die <strong className="text-ink font-medium">{instance.schema_version}</strong>-
+        <div className="text-[13px] sm:text-[13.5px] text-muted leading-relaxed">
+          Diese Ansicht rendert exakt die <strong className="text-ink font-semibold">{instance.schema_version}</strong>-
           Felddefinition, die zum Erstellungszeitpunkt gueltig war. Spaetere Versionen sind hier
           ohne Wirkung.
         </div>
-        <span className={`badge badge-${instance.status}`}>{instance.status}</span>
+        <span className={`badge badge-${instance.status} self-start sm:self-center`}>{instance.status}</span>
       </div>
 
       <div className="paper">
@@ -172,20 +168,20 @@ export function InstanceDetailPage() {
 
       <AttachmentsSection instanceId={instance.id} readOnly={instance.status !== "entwurf"} />
 
-      <div className="paper mt-6">
-        <h3 className="font-display font-display font-medium text-2xl tracking-tightish m-0">
+      <div className="paper mt-4 sm:mt-6">
+        <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0">
           Genehmigungsverlauf
         </h3>
         <p className="text-[13px] text-muted mt-1 mb-4">
           Revisionssichere Historie aller Stage-Entscheidungen.
         </p>
-        <div className="pl-2">
+        <div className="pl-1 sm:pl-2">
           {timeline.map((step, idx) => (
             <div
               key={idx}
-              className="grid grid-cols-[32px_1fr] gap-4 py-4 border-b border-rule-soft last:border-b-0"
+              className="grid grid-cols-[24px_1fr] sm:grid-cols-[32px_1fr] gap-3 sm:gap-4 py-4 border-b border-rule-soft last:border-b-0"
             >
-              <div className="pt-1">
+              <div className="pt-1.5">
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
@@ -196,33 +192,35 @@ export function InstanceDetailPage() {
                   )}
                 />
               </div>
-              <div>
-                <div className="font-display font-display font-medium text-base">
+              <div className="min-w-0">
+                <div className="font-display font-semibold text-base">
                   {humanize(step.stage)}
                 </div>
                 <div className="label-mono mt-0.5">{step.rolle}</div>
                 {step.approval ? (
                   <div className="mt-2 text-[13px] text-muted">
-                    <span className={`badge ${badgeForDecision(step.approval.entscheidung)}`}>
-                      {step.approval.entscheidung}
-                    </span>
-                    durch <span className="text-ink">{step.approval.genehmiger}</span>
-                    <span className="font-mono text-[11px] text-quiet ml-2">
-                      {formatDate(step.approval.zeitstempel)}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`badge ${badgeForDecision(step.approval.entscheidung)}`}>
+                        {step.approval.entscheidung}
+                      </span>
+                      <span>durch <span className="text-ink font-medium">{step.approval.genehmiger}</span></span>
+                      <span className="font-mono text-[11px] text-quiet">
+                        {formatDate(step.approval.zeitstempel)}
+                      </span>
+                    </div>
                     {step.approval.kommentar && (
-                      <div className="mt-1.5 px-3 py-2 bg-bg border-l-2 border-rule text-ink">
+                      <div className="mt-2 px-3 py-2 bg-bg border-l-2 border-rule rounded-r-md text-ink">
                         {step.approval.kommentar}
                       </div>
                     )}
                   </div>
                 ) : step.cls === "current" ? (
                   <div className="mt-2 text-[13px]">
-                    <em className="text-warn">Wartet auf Entscheidung …</em>
+                    <em className="text-warn font-medium">Wartet auf Entscheidung …</em>
                     {waitingDays !== null && (
-                      <span
+                      <div
                         className={cn(
-                          "ml-3 font-mono text-[11px] uppercase tracking-wider",
+                          "mt-1 sm:mt-0 sm:inline sm:ml-3 font-mono text-[11px] uppercase tracking-wider",
                           slaState === "ok" && "text-quiet",
                           slaState === "near" && "text-warn",
                           slaState === "breached" && "text-bad",
@@ -231,7 +229,7 @@ export function InstanceDetailPage() {
                         seit {waitingDays.toFixed(1)} Tagen · SLA {slaDays} Tage
                         {slaState === "near" && " · Erinnerung faellig"}
                         {slaState === "breached" && " · SLA ueberschritten"}
-                      </span>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -256,12 +254,12 @@ export function InstanceDetailPage() {
       )}
 
       {instance.status === "entwurf" && (
-        <div className="mt-8 border border-rule border-l-2 border-l-neutral bg-[#fdfaf3] px-8 py-7">
-          <h3 className="font-display font-display font-medium text-2xl m-0">Entwurf</h3>
+        <div className="mt-6 sm:mt-8 rounded-lg border border-rule border-l-[3px] border-l-neutral bg-paper shadow-card px-5 sm:px-8 py-5 sm:py-7">
+          <h3 className="font-display font-semibold text-xl sm:text-2xl m-0">Entwurf</h3>
           <div className="mt-1 text-[13px] text-muted">
             Dieser Antrag wurde noch nicht eingereicht.
           </div>
-          <div className="mt-6 pt-6 border-t border-rule-soft flex gap-3">
+          <div className="mt-5 pt-5 border-t border-rule-soft flex gap-3">
             <button className="btn" disabled={submitMut.isPending} onClick={() => submitMut.mutate()}>
               {submitMut.isPending ? "Sende …" : "Jetzt einreichen"}
             </button>
@@ -269,7 +267,7 @@ export function InstanceDetailPage() {
         </div>
       )}
 
-      <div className="mt-12 text-center">
+      <div className="mt-10 sm:mt-12 text-center">
         <Link to="/antraege" className="font-mono text-[11px] uppercase tracking-widest text-muted hover:text-accent">
           ← Zur Antrags-Liste
         </Link>
@@ -290,14 +288,14 @@ interface ABProps {
 
 function ApprovalBox({ stage, rolle, userCanDecide, kommentar, setKommentar, onDecide, busy }: ABProps) {
   return (
-    <div className="mt-8 border border-rule border-l-2 border-l-warn bg-[#fdfaf3] px-8 py-7">
-      <h3 className="font-display font-display font-medium text-2xl m-0">Entscheidung treffen</h3>
+    <div className="mt-6 sm:mt-8 rounded-lg border border-rule border-l-[3px] border-l-warn bg-paper shadow-card px-5 sm:px-8 py-5 sm:py-7">
+      <h3 className="font-display font-semibold text-xl sm:text-2xl m-0">Entscheidung treffen</h3>
       <div className="mt-1 text-[13px] text-muted">
         Aktuelle Stage: <strong className="text-ink">{humanize(stage)}</strong>
-        ·  erforderliche Rolle: <strong className="text-ink">{rolle}</strong>
+        {" · "}erforderliche Rolle: <strong className="text-ink">{rolle}</strong>
       </div>
       {!userCanDecide && (
-        <div className="mt-4 border-l-2 border-bad bg-bad-soft px-4 py-3 text-sm text-bad">
+        <div className="mt-4 hint hint-bad">
           Deine Rollen ({"…"}) berechtigen dich nicht, in dieser Stage zu entscheiden.
           Die Entscheidung muss durch eine Person mit der Rolle „{rolle}" getroffen werden.
         </div>
@@ -315,7 +313,7 @@ function ApprovalBox({ stage, rolle, userCanDecide, kommentar, setKommentar, onD
           />
         </div>
       </div>
-      <div className="mt-6 pt-6 border-t border-rule-soft flex flex-wrap gap-3">
+      <div className="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-rule-soft flex flex-col sm:flex-row flex-wrap gap-3">
         <button
           className="btn btn-ok"
           disabled={!userCanDecide || busy}
