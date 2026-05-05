@@ -48,51 +48,55 @@ export function InstancesPage() {
 
   return (
     <section>
-      <header className="mb-10 max-w-[720px]">
+      <header className="page-header">
         <p className="eyebrow mb-3">Antraege</p>
-        <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
-          {titel}
-        </h2>
-        <p className="mt-4 text-[15.5px] text-muted">{beschreibung}</p>
+        <h2 className="page-title">{titel}</h2>
+        <p className="page-lead">{beschreibung}</p>
       </header>
 
       {isLoading && (
-        <div className="border border-dashed border-rule py-20 text-center text-muted italic">
+        <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
           Lade Antraege …
         </div>
       )}
       {error && (
-        <div className="border border-bad-soft border-l-2 border-l-bad bg-bad-soft px-5 py-4 text-bad">
-          {(error as Error).message}
-        </div>
+        <div className="hint hint-bad">{(error as Error).message}</div>
       )}
       {data && data.length === 0 && (
-        <div className="border border-dashed border-rule py-20 text-center text-muted italic">
+        <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
           Keine offenen Antraege.
         </div>
       )}
       {data && data.length > 0 && (
-        <div className="flex flex-col">
+        <div className="list-card">
           {data.map((i) => (
             <Link
               key={i.id}
               to={`/antraege/${i.id}`}
-              className="grid grid-cols-[1fr_auto_auto_auto] gap-8 items-center px-6 py-5 border border-rule -mb-px last:mb-0 bg-paper hover:bg-[#fdfaf3] transition cursor-pointer"
+              className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-4 sm:gap-x-6 gap-y-2 px-4 sm:px-6 py-4 sm:py-5 bg-paper hover:bg-bg transition-colors cursor-pointer"
             >
-              <div>
-                <h4 className="font-display font-display font-medium text-[17px] tracking-tightish m-0">
+              <div className="min-w-0">
+                <h4 className="font-display font-semibold text-[15px] sm:text-[17px] tracking-tightish m-0 truncate">
                   {instanceTitle(i)}
                 </h4>
-                <div className="mt-1 font-mono text-[11px] text-quiet">
-                  <span className="text-accent">{i.schema_version}</span>{" "}
-                  ·  ID {i.id.slice(0, 8)} ·  von {i.antragsteller} ·  {formatDate(i.erstellt_am)}
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-quiet">
+                  <span className="text-accent">{i.schema_version}</span>
+                  <span>·</span>
+                  <span>{i.id.slice(0, 8)}</span>
+                  <span>·</span>
+                  <span className="truncate max-w-[160px]">von {i.antragsteller}</span>
+                  <span>·</span>
+                  <span>{formatDate(i.erstellt_am)}</span>
                 </div>
               </div>
-              <div className="font-mono text-[11px] uppercase tracking-wider text-muted">
+              <ChevronRight size={16} className="text-quiet sm:hidden justify-self-end" />
+              <div className="hidden sm:block font-mono text-[11px] uppercase tracking-wider text-muted whitespace-nowrap">
                 {stageLabel(i)}
               </div>
-              <span className={`badge badge-${i.status}`}>{i.status}</span>
-              <ChevronRight size={16} className="text-quiet" />
+              <span className={`badge badge-${i.status} col-start-1 sm:col-auto justify-self-start sm:justify-self-auto`}>
+                {i.status}
+              </span>
+              <ChevronRight size={16} className="text-quiet hidden sm:block" />
             </Link>
           ))}
         </div>

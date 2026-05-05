@@ -2,62 +2,140 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- Globale Editorial-Defaults ---------- */
+/* ---------- Globale Defaults im Stil der Volksbanken ---------- */
 @layer base {
   html, body, #root { height: 100%; }
-  html { background: theme(colors.bg); color: theme(colors.ink); }
+  html {
+    background: theme(colors.bg);
+    color: theme(colors.ink);
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     font-family: theme(fontFamily.body);
     font-size: 15px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
-  /* Display-Variante (Fraunces) — opsz fuer ruhige Ueberschriften */
-  .font-display { font-variation-settings: "opsz" 144; }
+  /* Kompakte System-Scrollbar passt zum kuehlen, ruhigen Grundton */
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background: theme(colors.rule);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: theme(colors.quiet); }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px hsl(212 100% 35% / 0.30);
+    border-radius: 6px;
+  }
+
+  h1, h2, h3, h4, h5, h6 { letter-spacing: -0.01em; }
 }
 
-/* ---------- Wiederverwendbare Editorial-Atome ---------- */
+/* ---------- Wiederverwendbare Atome ---------- */
 @layer components {
   .eyebrow {
-    @apply font-mono text-[11px] uppercase tracking-[0.15em] text-quiet;
+    @apply font-mono text-[11px] uppercase tracking-[0.14em] text-quiet;
   }
   .label-mono {
     @apply font-mono text-[11px] uppercase tracking-[0.08em] text-quiet;
   }
+
+  /* Karten mit weicher Schattierung — moderne Volksbanken-Anmutung */
   .paper {
-    @apply bg-paper border border-rule p-8 sm:p-10;
+    @apply bg-paper border border-rule rounded-lg shadow-card p-5 sm:p-7 md:p-8;
   }
-  .paper + .paper { @apply mt-6; }
+  .paper + .paper { @apply mt-4 sm:mt-6; }
+
+  /* Sektion-Header (Eyebrow + H2 + Beschreibung) */
+  .page-header { @apply mb-6 sm:mb-10 max-w-[760px]; }
+  .page-title  {
+    @apply font-display font-semibold tracking-tightish
+           text-[26px] sm:text-[32px] lg:text-[40px] leading-[1.15];
+  }
+  .page-lead   { @apply mt-3 sm:mt-4 text-[14.5px] sm:text-[15.5px] text-muted leading-relaxed; }
 
   .badge {
-    @apply inline-block px-2.5 py-[3px] font-mono text-[11px] tracking-wider uppercase rounded-sm whitespace-nowrap;
+    @apply inline-flex items-center px-2.5 py-[3px] font-mono text-[11px]
+           tracking-wider uppercase rounded-full whitespace-nowrap font-medium;
   }
-  .badge-active,    .badge-genehmigt   { @apply bg-ok-soft text-ok; }
-  .badge-draft,     .badge-in_pruefung { @apply bg-warn-soft text-warn; }
-  .badge-retired,   .badge-entwurf     { @apply bg-neutral-soft text-neutral; }
+  .badge-active,    .badge-genehmigt       { @apply bg-ok-soft text-ok; }
+  .badge-draft,     .badge-in_pruefung     { @apply bg-brand-soft text-warn; }
+  .badge-retired,   .badge-entwurf         { @apply bg-neutral-soft text-neutral; }
   .badge-abgelehnt, .badge-zurueckgewiesen { @apply bg-bad-soft text-bad; }
 
+  /* Buttons — Primaer ist das Markenblau, dezenter Hover, runde Ecken */
   .btn {
-    @apply inline-flex items-center justify-center px-5 py-2.5 font-body text-[13px] font-medium tracking-wide
-           border border-ink bg-ink text-paper cursor-pointer transition
-           hover:bg-accent hover:border-accent
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2
+           px-4 sm:px-5 py-2.5 font-body text-[13.5px] font-semibold
+           rounded-md border border-accent bg-accent text-paper
+           cursor-pointer transition-colors duration-150
+           hover:bg-accent-hover hover:border-accent-hover
+           focus-visible:shadow-ring
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-accent;
   }
-  .btn-ghost  { @apply bg-transparent text-ink hover:bg-ink hover:text-paper; }
-  .btn-ok     { @apply bg-ok border-ok hover:bg-[hsl(135_35%_22%)] hover:border-[hsl(135_35%_22%)]; }
-  .btn-warn   { @apply bg-transparent text-warn border-warn hover:bg-warn hover:text-paper; }
-  .btn-bad    { @apply bg-transparent text-bad border-bad hover:bg-bad hover:text-paper; }
+  .btn-ghost  {
+    @apply bg-transparent text-accent border-rule
+           hover:bg-accent-soft hover:border-accent-soft hover:text-accent;
+  }
+  .btn-ok     {
+    @apply bg-ok border-ok hover:bg-[hsl(150_55%_26%)] hover:border-[hsl(150_55%_26%)];
+  }
+  .btn-warn   {
+    @apply bg-transparent text-warn border-warn
+           hover:bg-warn hover:text-paper;
+  }
+  .btn-bad    {
+    @apply bg-transparent text-bad border-bad
+           hover:bg-bad hover:text-paper;
+  }
+  .btn-brand  {
+    @apply bg-brand border-brand text-paper
+           hover:bg-[hsl(33_100%_42%)] hover:border-[hsl(33_100%_42%)];
+  }
 
   .input {
-    @apply w-full px-3 py-2.5 font-body text-sm border border-rule bg-paper text-ink
-           focus:outline-none focus:border-accent;
+    @apply w-full px-3.5 py-2.5 font-body text-sm
+           border border-rule rounded-md bg-paper text-ink
+           placeholder:text-quiet
+           transition-colors duration-150
+           focus:outline-none focus:border-accent-ring focus:shadow-ring
+           disabled:bg-bg disabled:text-muted disabled:cursor-not-allowed;
   }
-  textarea.input { @apply resize-y min-h-[96px]; }
+  textarea.input { @apply resize-y min-h-[96px] leading-relaxed; }
+
+  /* Verkettete Listenzeilen — saubere, runde Trennung */
+  .list-card {
+    @apply flex flex-col gap-3 rounded-lg overflow-hidden border border-rule bg-paper shadow-card;
+  }
+  .list-card > * + * { @apply border-t border-rule-soft; }
+
+  /* Kennzahl-Kacheln */
+  .stat-tile {
+    @apply rounded-lg border border-rule bg-paper px-5 py-5 shadow-card
+           transition-shadow duration-150 hover:shadow-pop;
+  }
+  .stat-tile-accent {
+    @apply border-l-[3px] border-l-accent;
+  }
+
+  /* Hinweis-Boxen */
+  .hint {
+    @apply rounded-md border border-rule-soft bg-bg
+           border-l-[3px] border-l-rule
+           px-4 sm:px-5 py-3 sm:py-4 text-[13px] text-muted leading-relaxed;
+  }
+  .hint-info  { @apply border-l-accent bg-accent-soft text-ink; }
+  .hint-warn  { @apply border-l-warn  bg-brand-soft  text-ink; }
+  .hint-bad   { @apply border-l-bad   bg-bad-soft   text-bad; }
+  .hint-ok    { @apply border-l-ok    bg-ok-soft    text-ok; }
 }
 
 /* ---------- Print-Variante (PDF-Export per Browser-Druck) ---------- */
 @media print {
-  /* Header, Tabs, Aktion-Boxen, Toasts blenden wir aus — nur der Antrag selbst soll auf Papier. */
   header.print\:hidden,
   nav,
   .no-print,
@@ -69,7 +147,6 @@
   .paper { border: none !important; padding: 0 !important; box-shadow: none !important; }
   .badge { border: 1px solid currentColor; }
   a { color: inherit !important; text-decoration: none !important; }
-  /* Eine eigene Print-Anmerkung im Detail-View koennen Komponenten via .print-only aktivieren */
   .print-only { display: block !important; }
 }
 .print-only { display: none; }

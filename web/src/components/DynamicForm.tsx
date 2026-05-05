@@ -41,12 +41,12 @@ export function DynamicForm({ jsonSchema, uiSchema, data, onChange, readOnly = f
       {uiSchema.elements.map((group) => (
         <fieldset
           key={group.label}
-          className="border-0 border-t border-rule-soft py-8 first:border-t-0 first:pt-2 m-0"
+          className="border-0 border-t border-rule-soft pt-6 sm:pt-8 pb-2 first:border-t-0 first:pt-2 m-0"
         >
-          <legend className="font-display font-display font-medium text-[22px] tracking-tightish px-4 -ml-4">
+          <legend className="font-display font-semibold text-[18px] sm:text-[22px] tracking-tightish px-1 sm:px-2 -ml-1 sm:-ml-2 text-ink">
             {group.label}
           </legend>
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+          <div className="mt-4 sm:mt-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-5 sm:gap-y-6">
             {group.elements.map((ctrl, idx) => (
               <Field
                 key={ctrl.scope ?? `${group.label}-${idx}`}
@@ -79,12 +79,12 @@ function Field({ ctrl, jsonSchema, data, update, readOnly }: FieldProps) {
     return (
       <div
         className={cn(
-          "col-span-full border border-rule border-l-2 px-5 py-4 bg-bg",
-          ctrl.level === "warning" && "border-l-warn bg-warn-soft",
-          ctrl.level !== "warning" && "border-l-neutral",
+          "col-span-full rounded-md border border-rule-soft border-l-[3px] px-4 sm:px-5 py-3 sm:py-4 bg-bg",
+          ctrl.level === "warning" && "border-l-warn bg-brand-soft",
+          ctrl.level !== "warning" && "border-l-accent bg-accent-soft",
         )}
       >
-        <div className="font-display font-display font-medium text-[15px]">{ctrl.label}</div>
+        <div className="font-display font-semibold text-[14px] sm:text-[15px] text-ink">{ctrl.label}</div>
         <div className="mt-1 text-[13px] text-muted leading-relaxed">{ctrl.text}</div>
       </div>
     );

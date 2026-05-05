@@ -14,7 +14,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     return (
       <div className="paper max-w-[600px]">
         <p className="eyebrow mb-3">403 · Zugriff verweigert</p>
-        <h2 className="font-display font-display font-medium text-2xl tracking-tightish">
+        <h2 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish">
           Dieser Bereich ist Administratoren vorbehalten.
         </h2>
         <p className="mt-3 text-muted text-sm">

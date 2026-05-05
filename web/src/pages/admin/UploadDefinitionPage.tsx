@@ -51,12 +51,10 @@ export function UploadDefinitionPage() {
 
   return (
     <section>
-      <header className="mb-10 max-w-[720px]">
+      <header className="page-header">
         <p className="eyebrow mb-3">Admin · Upload</p>
-        <h2 className="font-display font-display font-normal text-[40px] leading-[1.1] tracking-tightish">
-          Neue Maskenversion hochladen
-        </h2>
-        <p className="mt-4 text-[15.5px] text-muted">
+        <h2 className="page-title">Neue Maskenversion hochladen</h2>
+        <p className="page-lead">
           Hochgeladene Definitionen starten als <em>draft</em>. Erst nach
           Pruefung kannst du sie aktivieren — die jeweils vorhandene aktive
           Version desselben Typs wird bei Aktivierung automatisch retired.
@@ -117,7 +115,7 @@ export function UploadDefinitionPage() {
             <input
               type="file"
               accept="application/json,.json"
-              className="input p-1.5"
+              className="input p-1.5 file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-accent file:font-medium"
               onChange={(e) => setJsonSchemaFile(e.target.files?.[0] ?? null)}
               required
             />
@@ -127,7 +125,7 @@ export function UploadDefinitionPage() {
             <input
               type="file"
               accept="application/json,.json"
-              className="input p-1.5"
+              className="input p-1.5 file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-accent file:font-medium"
               onChange={(e) => setUiSchemaFile(e.target.files?.[0] ?? null)}
               required
             />
@@ -135,12 +133,10 @@ export function UploadDefinitionPage() {
         </div>
 
         {error && (
-          <div className="border-l-2 border-bad bg-bad-soft px-4 py-3 text-sm text-bad">
-            {error}
-          </div>
+          <div className="hint hint-bad">{error}</div>
         )}
 
-        <div className="pt-4 border-t border-rule-soft flex gap-3">
+        <div className="pt-4 border-t border-rule-soft flex flex-col sm:flex-row gap-3">
           <button
             type="submit"
             className="btn"
