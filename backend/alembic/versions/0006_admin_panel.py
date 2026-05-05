@@ -181,7 +181,7 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column("name", sa.String(length=80), nullable=False, unique=True),
         sa.Column("description", sa.String(length=500), nullable=True),
-        sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_roles_name", "roles", ["name"], unique=True)
@@ -194,8 +194,8 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
         sa.Column("email", sa.String(length=320), nullable=True),
         sa.Column("auth_source", sa.String(length=20), nullable=False),
         sa.Column("password_argon2", sa.String(length=255), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
-        sa.Column("is_emergency", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("is_emergency", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("ldap_dn", sa.String(length=500), nullable=True),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -225,14 +225,14 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
     op.create_table(
         "ldap_config",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("server", sa.String(length=500), nullable=False, server_default=""),
         sa.Column("bind_user_template", sa.String(length=500), nullable=False, server_default=""),
         sa.Column("search_base", sa.String(length=500), nullable=False, server_default=""),
         sa.Column("group_search_base", sa.String(length=500), nullable=False, server_default=""),
         sa.Column("group_filter", sa.String(length=500), nullable=False,
                   server_default="(member={user_dn})"),
-        sa.Column("tls_required", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("tls_required", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("ca_cert_pem", sa.Text(), nullable=True),
         sa.Column("timeout_seconds", sa.Integer(), nullable=False, server_default="5"),
         sa.Column("service_account_dn", sa.String(length=500), nullable=True),
@@ -261,10 +261,10 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
     op.create_table(
         "smtp_config",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("host", sa.String(length=255), nullable=False, server_default="localhost"),
         sa.Column("port", sa.Integer(), nullable=False, server_default="1025"),
-        sa.Column("use_tls", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("use_tls", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("username", sa.String(length=255), nullable=False, server_default=""),
         sa.Column("password_enc", sa.Text(), nullable=True),
         sa.Column("mail_from", sa.String(length=320), nullable=False,
@@ -301,7 +301,7 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
     op.create_table(
         "escalation_config",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("default_sla_days", sa.Integer(), nullable=False, server_default="14"),
         sa.Column("interval_minutes", sa.Integer(), nullable=False, server_default="60"),
         sa.Column("bereichsleiter_role_id", sa.String(length=36),
@@ -372,33 +372,35 @@ def upgrade() -> None:  # noqa: C901 — Migration ist linear und lesbarer am St
                     {"r": rid, "p": pid},
                 )
 
-    # Single-Row-Configs
+    # Single-Row-Configs. Wir schreiben Boolean-Werte als :enabled-Bind-Parameter,
+    # damit SQLAlchemy sie pro Dialekt korrekt umsetzt (Postgres: TRUE/FALSE,
+    # SQLite: 0/1).
     bind.execute(
         sa.text(
             "INSERT INTO ldap_config (id, enabled, server, bind_user_template, search_base, "
             "group_search_base, group_filter, tls_required, timeout_seconds, user_filter, "
             "attr_username, attr_display_name, attr_email, updated_at, updated_by) "
-            "VALUES (1, 0, '', '', '', '', '(member={user_dn})', 1, 5, '(uid={username})', "
-            "'uid', 'displayName', 'mail', :ts, 'system')"
+            "VALUES (1, :enabled, '', '', '', '', '(member={user_dn})', :tls, 5, "
+            "'(uid={username})', 'uid', 'displayName', 'mail', :ts, 'system')"
         ),
-        {"ts": now},
+        {"enabled": False, "tls": True, "ts": now},
     )
     bind.execute(
         sa.text(
             "INSERT INTO smtp_config (id, enabled, host, port, use_tls, username, "
             "mail_from, app_url, updated_at, updated_by) "
-            "VALUES (1, 0, 'localhost', 1025, 0, '', "
+            "VALUES (1, :enabled, 'localhost', 1025, :tls, '', "
             "'noreply@bws.local', 'http://localhost:8080', :ts, 'system')"
         ),
-        {"ts": now},
+        {"enabled": False, "tls": False, "ts": now},
     )
     bind.execute(
         sa.text(
             "INSERT INTO escalation_config (id, enabled, default_sla_days, interval_minutes, "
             "bereichsleiter_role_id, updated_at, updated_by) "
-            "VALUES (1, 0, 14, 60, :rid, :ts, 'system')"
+            "VALUES (1, :enabled, 14, 60, :rid, :ts, 'system')"
         ),
-        {"rid": role_id_by_name.get("Bereichsleiter"), "ts": now},
+        {"enabled": False, "rid": role_id_by_name.get("Bereichsleiter"), "ts": now},
     )
 
     # Notification-Templates
@@ -449,11 +451,11 @@ def _try_import_users_json(bind, role_id_by_name: dict[str, str], now: datetime)
             sa.text(
                 "INSERT INTO users (id, username, display_name, email, auth_source, "
                 "password_argon2, is_active, is_emergency, created_at, updated_at) "
-                "VALUES (:id, :u, :n, :e, 'local', :pw, 1, 0, :ts, :ts)"
+                "VALUES (:id, :u, :n, :e, 'local', :pw, :active, :emerg, :ts, :ts)"
             ),
             {"id": uid, "u": username, "n": entry.get("name") or username,
              "e": entry.get("email") or None, "pw": entry.get("password_argon2"),
-             "ts": now},
+             "active": True, "emerg": False, "ts": now},
         )
         seen_pairs: set[tuple[str, str]] = set()
         for role_name in entry.get("roles", []):
