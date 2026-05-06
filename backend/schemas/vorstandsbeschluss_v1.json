@@ -2,131 +2,227 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "vbga://forms/vorstandsbeschluss/v1",
   "title": "Vorstandsbeschluss",
-  "description": "Beschlussvorlage zur Vorlage und Beschlussfassung im Vorstand der Volksbank Gronau-Ahaus eG.",
+  "description": "Beschlussvorlage zur Vorlage und Beschlussfassung im Vorstand bzw. Aufsichtsrat der Volksbank Gronau-Ahaus eG.",
   "type": "object",
-  "required": ["beschluss", "antrag", "beschlussvorschlag", "marisk_relevanz"],
+  "required": ["fachbereich_kopf", "antrag", "sachverhalt", "kommunikation", "pflichtpruefungen"],
   "properties": {
-    "beschluss": {
+    "fachbereich_kopf": {
       "type": "object",
-      "required": ["titel", "datum", "vorlagengeber", "kategorie"],
+      "title": "Fachbereich — Stammdaten",
+      "required": ["entscheidungstraeger", "verfasser", "betreff"],
       "properties": {
-        "titel": {
+        "entscheidungstraeger": {
           "type": "string",
-          "description": "Kurztitel des Beschlusses, z. B. 'Auslagerung Rechenzentrumsbetrieb an Atruvia AG'"
+          "enum": ["Vorstand", "Aufsichtsrat"],
+          "description": "Entscheidungsträger, der über den Antrag beschließen soll."
         },
-        "datum": {
+        "verfasser": {
+          "type": "string",
+          "description": "VS-Beschlüsse können von allen Mitarbeitenden erstellt werden. Name der vorlegenden Person."
+        },
+        "weitere_beteiligte": {
+          "type": "string",
+          "description": "Sofern der VS-Beschluss nicht von einem Bereichsleiter bzw. Leiter einer Stabsfunktion erstellt worden ist, ist dieser aus QM-Gründen als weiterer Beteiligter zu berücksichtigen. Bei betroffenen Bereichen sind auch die jeweiligen Leiter aufzunehmen."
+        },
+        "betreff": {
+          "type": "string",
+          "description": "Aussagekräftige Betreffzeile."
+        },
+        "zeitliche_restriktion": {
+          "type": "string",
+          "description": "Sofern erforderlich, z. B. aufgrund gesetzlicher Umsetzungsfristen."
+        },
+        "umsetzung_geplant_bis": {
           "type": "string",
           "format": "date",
-          "description": "Sitzungsdatum, an dem der Beschluss gefasst werden soll"
+          "description": "Termin, bis zu dem die Umsetzung des Beschlusses planmäßig erfolgen soll."
         },
-        "vorlagengeber": {
+        "anlagen": {
           "type": "string",
-          "description": "Name der vorlegenden Person (Bereichsleitung)"
-        },
-        "kategorie": {
-          "type": "string",
-          "enum": ["Strategie", "Personal", "IT", "Finanzen", "Auslagerung", "Sonstiges"]
+          "description": "Sofern für das Verständnis bzw. den Antrag selbst relevant (z. B. zu genehmigende AAW)."
         }
       }
     },
     "antrag": {
       "type": "object",
-      "required": ["sachverhalt", "begruendung"],
+      "title": "Antrag",
+      "required": ["antragstext"],
       "properties": {
-        "sachverhalt": {
+        "antragstext": {
           "type": "string",
-          "description": "Worum geht es? Sachverhalt fachlich darstellen."
-        },
-        "begruendung": {
-          "type": "string",
-          "description": "Warum ist dieser Beschluss notwendig? Geschäftliche Begründung."
-        },
-        "alternativen": {
-          "type": "string",
-          "description": "Geprüfte Alternativen und warum sie verworfen wurden (optional)."
+          "description": "Kurze und verständliche Formulierung des zu beantragenden Sachverhaltes („Was soll der Vorstand beschließen?\"). Beispiel: „Es wird die Freigabe der überarbeiteten AAW Projektmanagement beantragt.\" Auf Konsistenz zwischen Antrag und Sachverhaltsdarstellung ist zu achten."
         }
       }
     },
-    "beschlussvorschlag": {
+    "sachverhalt": {
       "type": "object",
-      "required": ["wortlaut"],
+      "title": "Fachbereich — Sachverhaltsdarstellung",
+      "required": ["ausgangssituation", "sachverhalt_beschlussantrag", "bewertung_veraenderungen", "fazit_empfehlung"],
       "properties": {
-        "wortlaut": {
+        "ausgangssituation": {
           "type": "string",
-          "description": "Wörtlicher Beschlusstext, wie er ins Protokoll eingehen soll."
+          "description": "Kurze Beschreibung der aktuellen Situation bzw. des aktuellen Ist-Zustandes/Ist-Prozesses."
+        },
+        "sachverhalt_beschlussantrag": {
+          "type": "string",
+          "description": "Kurze Beschreibung des Ziels des Antrages (Was wird beantragt und warum?). Kurze Beschreibung und Bewertung möglicher Handlungsalternativen — sofern vorhanden — im Verhältnis zum beantragten Sachverhalt."
+        },
+        "bewertung_veraenderungen": {
+          "type": "string",
+          "description": "Beschreibung der Kosten/Nutzen, Auswirkungen, Erfolgskriterien und Maßnahmenplan zur Umsetzung."
+        },
+        "fazit_empfehlung": {
+          "type": "string",
+          "description": "Kurze Zusammenfassung der Ergebnisse und Abgabe einer Empfehlung."
+        },
+        "naechste_schritte": {
+          "type": "string",
+          "description": "Skizzierung der nächsten Schritte — sofern vorhanden."
         }
       }
     },
-    "marisk_relevanz": {
+    "kommunikation": {
       "type": "object",
-      "description": "Pflichtprüfung der MaRisk-/DORA-Relevanz. Bei jeder Bejahung ist eine kurze Begründung erforderlich.",
-      "required": [
-        "at_9_auslagerung",
-        "at_7_2_it_systeme",
-        "dora_ikt_risiko",
-        "npp_neue_produkte",
-        "at_8_2_wesentlich"
-      ],
+      "title": "Kommunikationsplanung",
+      "required": ["erforderlich"],
       "properties": {
-        "at_9_auslagerung": {
+        "erforderlich": {
           "type": "boolean",
-          "description": "Beinhaltet der Beschluss eine Auslagerung im Sinne der MaRisk AT 9?"
+          "description": "Ist eine Kommunikation der Beschlussinhalte erforderlich?"
         },
-        "at_9_begruendung": {
+        "plan": {
           "type": "string",
-          "description": "Begründung zur AT-9-Einordnung (Pflicht, falls AT 9 bejaht)."
-        },
-        "at_7_2_it_systeme": {
-          "type": "boolean",
-          "description": "Berührt der Beschluss IT-Systeme im Sinne der MaRisk AT 7.2 (Programmänderungen, Tests, Datenintegrität)?"
-        },
-        "at_7_2_begruendung": {
-          "type": "string",
-          "description": "Begründung zur AT-7.2-Einordnung (Pflicht, falls bejaht)."
-        },
-        "dora_ikt_risiko": {
-          "type": "boolean",
-          "description": "Hat der Beschluss IKT-Risiko-Relevanz nach DORA (Art. 6 ff., Drittparteien, Resilience-Tests)?"
-        },
-        "dora_begruendung": {
-          "type": "string",
-          "description": "Begründung zur DORA-Einordnung (Pflicht, falls bejaht)."
-        },
-        "npp_neue_produkte": {
-          "type": "boolean",
-          "description": "Handelt es sich um ein neues Produkt oder einen neuen Markt im Sinne des NPP-Verfahrens (MaRisk AT 8.1)?"
-        },
-        "npp_begruendung": {
-          "type": "string",
-          "description": "Begründung zur NPP-Einordnung (Pflicht, falls bejaht)."
-        },
-        "at_8_2_wesentlich": {
-          "type": "boolean",
-          "description": "Wurde eine AT-8.2-Wesentlichkeitsanalyse erstellt oder ist sie erforderlich?"
-        },
-        "at_8_2_referenz": {
-          "type": "string",
-          "description": "Referenz auf die zugehörige AT-8.2-Analyse (z. B. Antragsnummer), optional."
+          "description": "Zielgruppe(n), Inhalte, Zeitpunkt, Kanäle und einzubeziehende Bereiche. Ggf. Vorab-Informationen einzelner Zielgruppen."
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "at_9_auslagerung":   { "const": true } }, "required": ["at_9_auslagerung"] },
+          "if": { "properties": { "erforderlich": { "const": true } }, "required": ["erforderlich"] },
+          "then": { "required": ["plan"] }
+        }
+      ]
+    },
+    "pflichtpruefungen": {
+      "type": "object",
+      "title": "Fachbereich — Pflichtprüfungen vor Einreichung",
+      "description": "Vor Einreichung des VS-Beschlusses zu prüfen; bei Bejahung sind die zugehörigen Formulare zu befüllen und beizufügen.",
+      "required": [
+        "npp_neue_produkte_maerkte",
+        "at_8_2_bewertung_erforderlich",
+        "at_9_auslagerung",
+        "at_9_fremdbezug_dienstleistung",
+        "at_9_fremdbezug_it_dienstleistung",
+        "neues_it_system",
+        "it_projekt_richtlinie"
+      ],
+      "properties": {
+        "npp_neue_produkte_maerkte": {
+          "type": "boolean",
+          "description": "Aufnahme von Geschäftsaktivitäten in neuen Produkten oder auf neuen Märkten gem. AT 8.1 MaRisk? (siehe Risikohandbuch bzw. AAW „Neue Produkte / Neue Märkte\")."
+        },
+        "npp_begruendung": {
+          "type": "string",
+          "description": "Begründung bzw. Verweis auf das beigefügte NPP-Konzept (Pflicht, falls bejaht)."
+        },
+        "at_8_2_bewertung_erforderlich": {
+          "type": "boolean",
+          "description": "Notwendigkeit der Bewertung gem. AT 8.2 MaRisk? (siehe AAW „Bewertung von Veränderungen gemäß AT 8.2 MaRisk\")."
+        },
+        "at_8_2_referenz": {
+          "type": "string",
+          "description": "Referenz auf die zugehörige AT-8.2-Bewertung (z. B. Antragsnummer)."
+        },
+        "at_9_auslagerung": {
+          "type": "boolean",
+          "description": "Handelt es sich gem. AT 9 MaRisk um eine Auslagerung? (siehe AAW „Auslagerungsmanagement\")."
+        },
+        "at_9_fremdbezug_dienstleistung": {
+          "type": "boolean",
+          "description": "Handelt es sich gem. AT 9 MaRisk um einen sonstigen Fremdbezug von Dienstleistungen?"
+        },
+        "at_9_fremdbezug_it_dienstleistung": {
+          "type": "boolean",
+          "description": "Handelt es sich gem. AT 9 MaRisk um einen sonstigen Fremdbezug von IT-Dienstleistungen?"
+        },
+        "at_9_begruendung": {
+          "type": "string",
+          "description": "Begründung bzw. Verweis auf die durchgeführten Analysen (Pflicht, falls eine der AT-9-Fragen bejaht)."
+        },
+        "neues_it_system": {
+          "type": "boolean",
+          "description": "Handelt es sich um ein neues IT-System (z. B. neue Anwendung)? (siehe AAW „Anwendungen\"; Formular „Anforderung/Aktualisierung einer Anwendung\" beifügen)."
+        },
+        "betriebsrat_anlage_versendet": {
+          "type": "boolean",
+          "description": "Anlage zur Betriebsvereinbarung IKT zur Prüfung des Mitbestimmungsrechtes an BL Personalmanagement gesendet (Pflicht, falls neues IT-System bejaht)."
+        },
+        "it_projekt_richtlinie": {
+          "type": "boolean",
+          "description": "Handelt es sich um ein (IT-)Projekt im Sinne der Projektrichtlinie? (siehe AAW „Projektmanagement\"; Projektantrag und ggf. Projektrisikoanalyse beifügen)."
+        },
+        "projekt_referenz": {
+          "type": "string",
+          "description": "Referenz auf den Projektantrag (Pflicht, falls bejaht)."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "npp_neue_produkte_maerkte": { "const": true } }, "required": ["npp_neue_produkte_maerkte"] },
+          "then": { "required": ["npp_begruendung"] }
+        },
+        {
+          "if": { "properties": { "at_8_2_bewertung_erforderlich": { "const": true } }, "required": ["at_8_2_bewertung_erforderlich"] },
+          "then": { "required": ["at_8_2_referenz"] }
+        },
+        {
+          "if": {
+            "anyOf": [
+              { "properties": { "at_9_auslagerung":                  { "const": true } }, "required": ["at_9_auslagerung"] },
+              { "properties": { "at_9_fremdbezug_dienstleistung":    { "const": true } }, "required": ["at_9_fremdbezug_dienstleistung"] },
+              { "properties": { "at_9_fremdbezug_it_dienstleistung": { "const": true } }, "required": ["at_9_fremdbezug_it_dienstleistung"] }
+            ]
+          },
           "then": { "required": ["at_9_begruendung"] }
         },
         {
-          "if": { "properties": { "at_7_2_it_systeme":  { "const": true } }, "required": ["at_7_2_it_systeme"] },
-          "then": { "required": ["at_7_2_begruendung"] }
+          "if": { "properties": { "neues_it_system": { "const": true } }, "required": ["neues_it_system"] },
+          "then": { "required": ["betriebsrat_anlage_versendet"] }
         },
         {
-          "if": { "properties": { "dora_ikt_risiko":    { "const": true } }, "required": ["dora_ikt_risiko"] },
-          "then": { "required": ["dora_begruendung"] }
-        },
-        {
-          "if": { "properties": { "npp_neue_produkte":  { "const": true } }, "required": ["npp_neue_produkte"] },
-          "then": { "required": ["npp_begruendung"] }
+          "if": { "properties": { "it_projekt_richtlinie": { "const": true } }, "required": ["it_projekt_richtlinie"] },
+          "then": { "required": ["projekt_referenz"] }
         }
       ]
+    },
+    "vorstandsentscheidung": {
+      "type": "object",
+      "title": "Vorstand — Genehmigungsvermerk",
+      "description": "Wird durch das Vorstandsgremium im Rahmen der Beschlussfassung befüllt.",
+      "properties": {
+        "genehmigung": {
+          "type": "string",
+          "enum": ["genehmigt", "nicht_genehmigt"],
+          "description": "Der Antrag wird genehmigt / nicht genehmigt."
+        },
+        "datum": {
+          "type": "string",
+          "format": "date",
+          "description": "Datum der Beschlussfassung."
+        },
+        "unterschrift": {
+          "type": "string",
+          "description": "Unterschrift des Vorstandes."
+        },
+        "anmerkungen": {
+          "type": "string",
+          "description": "Anmerkungen / Grund für die Nichtgenehmigung."
+        },
+        "wiedervorlage": {
+          "type": "string",
+          "format": "date",
+          "description": "Evtl. Wiedervorlagetermin."
+        }
+      }
     }
   }
 }

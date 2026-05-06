@@ -173,54 +173,74 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
         form_definition_id=defs["vorstandsbeschluss_v1"].id,
         antragsteller="bereichsleitung.it",
         daten={
-            "beschluss": {
-                "titel": "Auslagerung Rechenzentrumsbetrieb an Atruvia AG",
-                "datum": (now + timedelta(days=14)).date().isoformat(),
-                "vorlagengeber": "Bereichsleitung IT",
-                "kategorie": "Auslagerung",
+            "fachbereich_kopf": {
+                "entscheidungstraeger": "Vorstand",
+                "verfasser": "Bereichsleitung IT",
+                "weitere_beteiligte": "BL Unternehmenssteuerung, Auslagerungskoordinator, ISB",
+                "betreff": "Auslagerung Rechenzentrumsbetrieb an Atruvia AG",
+                "zeitliche_restriktion": "Cutover bis 01.10.2026 (Vertragsende Eigenbetrieb)",
+                "umsetzung_geplant_bis": (now + timedelta(days=160)).date().isoformat(),
+                "anlagen": "AT-8.2-Bewertung, Vertragsentwurf Atruvia, Risikoanalyse Auslagerung",
             },
             "antrag": {
-                "sachverhalt": (
-                    "Verlagerung des operativen Rechenzentrumsbetriebs an die Atruvia AG "
-                    "ab dem 01.10.2026 im Rahmen einer wesentlichen Auslagerung. Umfasst "
-                    "Hardware, Betriebssystem-Plattformen sowie Backup-Loesungen."
-                ),
-                "begruendung": (
-                    "Konzentration auf das Kerngeschaeft, Reduktion technischer Schuld, "
-                    "Hebung von Skaleneffekten und Erhoehung der IKT-Resilience nach DORA. "
-                    "Personelle Risiken werden durch die Bundelung beim Verbund-Dienstleister "
-                    "gemindert."
-                ),
-                "alternativen": (
-                    "Eigenbetrieb mit Modernisierung — verworfen wegen Kosten und Personalbedarf. "
-                    "Cloud-only ueber Hyperscaler — verworfen wegen aufsichtsrechtlicher Bedenken."
+                "antragstext": (
+                    "Es wird die Freigabe der Auslagerung des Rechenzentrumsbetriebs an die "
+                    "Atruvia AG zum 01.10.2026 unter den im Anhang beigefuegten Bedingungen "
+                    "beantragt."
                 ),
             },
-            "beschlussvorschlag": {
-                "wortlaut": (
-                    "Der Vorstand beschliesst die Auslagerung des Rechenzentrumsbetriebs an "
-                    "die Atruvia AG zum 01.10.2026 unter den im Anhang beigefuegten Bedingungen."
+            "sachverhalt": {
+                "ausgangssituation": (
+                    "Der Rechenzentrumsbetrieb wird derzeit im Eigenbetrieb gefuehrt. Die "
+                    "Hardware ist in Teilen am Ende des Lebenszyklus, Personalressourcen sind "
+                    "knapp und die Betriebskosten steigen kontinuierlich."
+                ),
+                "sachverhalt_beschlussantrag": (
+                    "Verlagerung des operativen Rechenzentrumsbetriebs an die Atruvia AG ab dem "
+                    "01.10.2026 im Rahmen einer wesentlichen Auslagerung (Hardware, Betriebssystem-"
+                    "Plattformen, Backup). Geprueft wurden: Eigenbetrieb mit Modernisierung "
+                    "(verworfen wegen Kosten/Personalbedarf) und Cloud-only ueber Hyperscaler "
+                    "(verworfen wegen aufsichtsrechtlicher Bedenken)."
+                ),
+                "bewertung_veraenderungen": (
+                    "Konzentration auf das Kerngeschaeft, Reduktion technischer Schuld, Hebung "
+                    "von Skaleneffekten und Erhoehung der IKT-Resilience nach DORA. Erfolg "
+                    "messbar an SLA-Erreichung, Anzahl Major Incidents und TCO-Verlauf. "
+                    "Umsetzung in vier Phasen: Vertrag, Migration Test, Migration Prod, Hypercare."
+                ),
+                "fazit_empfehlung": (
+                    "Empfehlung zur Genehmigung: Die Auslagerung verbessert die operative "
+                    "Stabilitaet und reduziert Personal- sowie Konzentrationsrisiken."
+                ),
+                "naechste_schritte": (
+                    "Vertragsabschluss bis Ende Q3, Aufnahme in das Auslagerungsregister, "
+                    "Start der Migration Q4."
                 ),
             },
-            "marisk_relevanz": {
+            "kommunikation": {
+                "erforderlich": True,
+                "plan": (
+                    "Mitarbeitende IT (Vorab-Info ueber Personalmanagement), Gesamthaus per "
+                    "Hausmitteilung nach Vertragsabschluss, Aufsichtsrat im Rahmen der "
+                    "Quartalsberichterstattung. Verantwortlich: BL IT in Abstimmung mit Vorstand."
+                ),
+            },
+            "pflichtpruefungen": {
+                "npp_neue_produkte_maerkte": False,
+                "at_8_2_bewertung_erforderlich": True,
+                "at_8_2_referenz": "AT-8.2-Antrag #2026-014",
                 "at_9_auslagerung": True,
+                "at_9_fremdbezug_dienstleistung": False,
+                "at_9_fremdbezug_it_dienstleistung": False,
                 "at_9_begruendung": (
                     "Wesentliche Auslagerung nach AT 9 Tz. 4 — kritische Funktion "
-                    "Rechenzentrumsbetrieb mit unmittelbarer Geschaeftsrelevanz."
+                    "Rechenzentrumsbetrieb mit unmittelbarer Geschaeftsrelevanz. "
+                    "IKT-Drittparteienrisiko nach DORA Art. 28 ff. wird in Vertragsentwurf "
+                    "abgebildet (Art. 30)."
                 ),
-                "at_7_2_it_systeme": True,
-                "at_7_2_begruendung": (
-                    "Aenderung der produktiven IT-Landschaft, Cutover-Plan und Test-Strecke "
-                    "gemaess AT 7.2 sind erforderlich."
-                ),
-                "dora_ikt_risiko": True,
-                "dora_begruendung": (
-                    "IKT-Drittparteienrisiko nach DORA Art. 28 ff., vertragliche Anforderungen "
-                    "(Art. 30) sind in Vertragsentwurf abzubilden."
-                ),
-                "npp_neue_produkte": False,
-                "at_8_2_wesentlich": True,
-                "at_8_2_referenz": "AT-8.2-Antrag #2026-014",
+                "neues_it_system": False,
+                "it_projekt_richtlinie": True,
+                "projekt_referenz": "Projektantrag #2026-IT-007",
             },
         },
         status="in_pruefung",
@@ -252,29 +272,42 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
         form_definition_id=defs["vorstandsbeschluss_v1"].id,
         antragsteller="bereichsleitung.personal",
         daten={
-            "beschluss": {
-                "titel": "Einfuehrung neue Mitarbeiterbeteiligung 2026",
-                "datum": (now + timedelta(days=21)).date().isoformat(),
-                "vorlagengeber": "Bereichsleitung Personal",
-                "kategorie": "Personal",
+            "fachbereich_kopf": {
+                "entscheidungstraeger": "Vorstand",
+                "verfasser": "Bereichsleitung Personal",
+                "betreff": "Einfuehrung neue Mitarbeiterbeteiligung 2026",
+                "umsetzung_geplant_bis": (now + timedelta(days=240)).date().isoformat(),
             },
             "antrag": {
-                "sachverhalt": (
-                    "Einfuehrung eines genossenschaftlichen Beteiligungsmodells fuer Mitarbeitende "
-                    "ab Geschaeftsjahr 2026 zur Foerderung der langfristigen Bindung."
+                "antragstext": (
+                    "Es wird die Einfuehrung eines genossenschaftlichen Beteiligungsmodells fuer "
+                    "Mitarbeitende ab Geschaeftsjahr 2026 zur Foerderung der langfristigen Bindung "
+                    "beantragt."
                 ),
-                "begruendung": "",  # bewusst leer — Demo zeigt Entwurfs-Status
             },
-            "beschlussvorschlag": {"wortlaut": ""},
-            "marisk_relevanz": {
-                "at_9_auslagerung": False,
-                "at_7_2_it_systeme": False,
-                "dora_ikt_risiko": False,
-                "npp_neue_produkte": True,  # NPP-Hinweis triggert in der UI
+            "sachverhalt": {
+                "ausgangssituation": (
+                    "Aktuell besteht kein eigenstaendiges Mitarbeiterbeteiligungsmodell jenseits "
+                    "der Tarifvereinbarungen."
+                ),
+                "sachverhalt_beschlussantrag": "",  # bewusst leer — Demo zeigt Entwurfs-Status
+                "bewertung_veraenderungen": "",
+                "fazit_empfehlung": "",
+            },
+            "kommunikation": {
+                "erforderlich": False,
+            },
+            "pflichtpruefungen": {
+                "npp_neue_produkte_maerkte": True,  # NPP-Hinweis triggert in der UI
                 "npp_begruendung": (
                     "Neue Form der Mitarbeiterbeteiligung — NPP-Verfahren nach AT 8.1 ist anzustossen."
                 ),
-                "at_8_2_wesentlich": False,
+                "at_8_2_bewertung_erforderlich": False,
+                "at_9_auslagerung": False,
+                "at_9_fremdbezug_dienstleistung": False,
+                "at_9_fremdbezug_it_dienstleistung": False,
+                "neues_it_system": False,
+                "it_projekt_richtlinie": False,
             },
         },
         status="entwurf",

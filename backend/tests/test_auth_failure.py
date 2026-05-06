@@ -123,29 +123,37 @@ def test_decide_with_wrong_role_returns_403(client, admin_auth):
     vb = next(d for d in defs if d["typ"] == "Vorstandsbeschluss" and d["status"] == "active")
 
     daten = {
-        "beschluss": {
-            "titel": "Test-Beschluss fuer Rollen-Negativtest",
-            "datum": "2026-12-01",
-            "vorlagengeber": "Test",
-            "kategorie": "Sonstiges",
+        "fachbereich_kopf": {
+            "entscheidungstraeger": "Vorstand",
+            "verfasser": "Test",
+            "betreff": "Test-Beschluss fuer Rollen-Negativtest",
         },
         "antrag": {
-            "sachverhalt": (
+            "antragstext": (
                 "Reiner Testfall fuer die Pruefung der Rollen-Validierung im Workflow. "
                 "Wir wollen sehen, dass ein User ohne die zur Stage gehoerende Rolle "
                 "abgewiesen wird, auch wenn er authentifiziert ist."
             ),
-            "begruendung": (
+        },
+        "sachverhalt": {
+            "ausgangssituation": "Reiner Testfall, kein realer Ist-Zustand.",
+            "sachverhalt_beschlussantrag": (
                 "Damit auditierbar bleibt, dass der Stage-Rollen-Check tatsaechlich greift "
                 "und nicht nur eine UI-Garantie ist, sondern serverseitig in der Workflow-"
                 "Engine erzwungen wird."
             ),
+            "bewertung_veraenderungen": "Keine — reiner Test.",
+            "fazit_empfehlung": "Test laeuft erfolgreich durch.",
         },
-        "beschlussvorschlag": {"wortlaut": "Der Vorstand beschliesst: nichts. Reiner Test."},
-        "marisk_relevanz": {
-            "at_9_auslagerung": False, "at_7_2_it_systeme": False,
-            "dora_ikt_risiko": False, "npp_neue_produkte": False,
-            "at_8_2_wesentlich": False,
+        "kommunikation": {"erforderlich": False},
+        "pflichtpruefungen": {
+            "npp_neue_produkte_maerkte": False,
+            "at_8_2_bewertung_erforderlich": False,
+            "at_9_auslagerung": False,
+            "at_9_fremdbezug_dienstleistung": False,
+            "at_9_fremdbezug_it_dienstleistung": False,
+            "neues_it_system": False,
+            "it_projekt_richtlinie": False,
         },
     }
     r = client.post("/instances", json={"form_definition_id": vb["id"], "daten": daten}, headers=admin_auth)
