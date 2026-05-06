@@ -192,11 +192,25 @@ def import_legacy_files_if_present(db: Session) -> None:
         select(models.User.id).where(models.User.is_emergency.is_(False))
     )
     if has_regular_users:
+        log.info(
+            "users.json-Import wird uebersprungen — DB enthaelt bereits "
+            "regulaere User. Aenderungen an config/users.json werden NICHT "
+            "mehr eingelesen; lokale User bitte ueber das Admin-Panel "
+            "(/admin) pflegen."
+        )
         return
 
     users_path = Path(_env("USERS_CONFIG_PATH", "config/users.json"))
     if users_path.exists():
+        log.info("Importiere lokale User aus %s …", users_path.resolve())
         _import_users_json(db, users_path)
+    else:
+        log.info(
+            "Keine users.json gefunden (gesucht: %s, CWD: %s). "
+            "Hinweis: Datei muss exakt 'users.json' (Plural) heissen.",
+            users_path,
+            Path.cwd(),
+        )
 
     role_emails_path = Path(_env("ROLE_EMAILS_PATH", "config/role_emails.toml"))
     if role_emails_path.exists():
@@ -218,9 +232,13 @@ def ensure_emergency_admin_or_die(db: Session) -> None:
     if not path.exists():
         raise RuntimeError(
             "Kein aktiver Admin-User in der DB und keine Notfall-Datei "
-            f"({path}). Bitte legen Sie eine Notfall-Datei nach dem Muster aus "
-            "config/emergency_users.example.json an oder seeden Sie einen Admin "
-            "in die users-Tabelle."
+            f"(gesucht unter {path.resolve() if path.is_absolute() else path}, "
+            f"CWD: {Path.cwd()}). Mindestens eines von beidem ist noetig — "
+            "sonst startet der Service nicht und der Reverse-Proxy liefert 502. "
+            "Schnellster Fix: 'cp config/emergency_users.example.json "
+            "config/emergency_users.json' und einen argon2-Hash via "
+            "'python -m app.auth.hash_password' eintragen. Alternativ einen "
+            "User mit Rolle 'Admin' in config/users.json (Plural!) anlegen."
         )
     raw = json.loads(path.read_text(encoding="utf-8"))
     loaded = _load_emergency_users(raw)
