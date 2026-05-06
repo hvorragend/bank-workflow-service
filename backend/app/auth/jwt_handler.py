@@ -36,6 +36,7 @@ def _issue_token(user: AuthenticatedUser, token_type: TokenType, lifetime: timed
         "name": user.name,
         "email": user.email,
         "roles": user.roles,
+        "permissions": user.permissions,
         "auth_source": user.auth_source,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
@@ -99,6 +100,7 @@ def decode_token(token: str, expected_type: TokenType) -> tuple[AuthenticatedUse
         name=payload.get("name", ""),
         email=payload.get("email", ""),
         roles=list(payload.get("roles", [])),
+        permissions=list(payload.get("permissions", [])),
         auth_source=payload.get("auth_source", "local"),
     )
     exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)

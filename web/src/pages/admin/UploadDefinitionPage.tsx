@@ -41,7 +41,7 @@ export function UploadDefinitionPage() {
     mutationFn: uploadDefinition,
     onSuccess: (def) => {
       show(`Definition ${def.typ} ${def.version} hochgeladen (Status: ${def.status}).`);
-      navigate("/admin");
+      navigate("/admin/definitionen");
     },
     onError: (e) => setError((e as Error).message),
   });
@@ -50,7 +50,7 @@ export function UploadDefinitionPage() {
     mutationFn: uploadDefinitionBpmn,
     onSuccess: (def) => {
       show(`Definition ${def.typ} ${def.version} aus BPMN importiert (Status: ${def.status}).`);
-      navigate("/admin");
+      navigate("/admin/definitionen");
     },
     onError: (e) => setError((e as Error).message),
   });
@@ -100,7 +100,7 @@ export function UploadDefinitionPage() {
         </p>
         <p className="mt-3 text-[13px] text-muted">
           Tipp: Statt den Workflow-Graph hier von Hand zu schreiben, kannst du den{" "}
-          <Link to="/admin/designer" className="text-accent underline">grafischen Designer</Link>{" "}
+          <Link to="/admin/definitionen/designer" className="text-accent underline">grafischen Designer</Link>{" "}
           nutzen oder eine .bpmn-Datei aus Camunda Modeler / demo.bpmn.io importieren.
         </p>
       </header>
@@ -231,7 +231,7 @@ export function UploadDefinitionPage() {
             >
               {busy ? "Lade hoch …" : "Als Entwurf hochladen"}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => navigate("/admin")}>
+            <button type="button" className="btn btn-ghost" onClick={() => navigate("/admin/definitionen")}>
               Abbrechen
             </button>
           </div>

@@ -15,8 +15,8 @@ Datenmigration:
 - Pre-Assertion: jede laufende Instanz muss ein Mapping haben. Sonst Migration
   bricht laut ab — keine stillen Datenverluste.
 
-Revision ID: 0006_dag_workflow
-Revises: 0005_api_tokens
+Revision ID: 0007_dag_workflow
+Revises: 0006_admin_panel
 Create Date: 2026-05-05 22:30:00
 """
 from __future__ import annotations
@@ -29,8 +29,8 @@ from typing import Any, Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0006_dag_workflow"
-down_revision: Union[str, Sequence[str], None] = "0005_api_tokens"
+revision: str = "0007_dag_workflow"
+down_revision: Union[str, Sequence[str], None] = "0006_admin_panel"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -179,7 +179,11 @@ export async function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Prom
 }
 
 export function listAdminRoles(): Promise<{ roles: string[] }> {
-  return api<{ roles: string[] }>("/admin/roles");
+  // /admin/roles liefert RoleOut[] (nach Admin-Panel-Refactor). Wir extrahieren
+  // nur die Namen — der Designer braucht sie fuer das Rollen-Dropdown am User-Task.
+  return api<Array<{ name: string }>>("/admin/roles").then((rs) => ({
+    roles: rs.map((r) => r.name),
+  }));
 }
 
 export function validateGraph(graph: WorkflowGraph): Promise<{ ok: true }> {

@@ -50,10 +50,10 @@ export function AdminDefinitionsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 self-start">
-          <Link to="/admin/designer" className="btn whitespace-nowrap">
+          <Link to="/admin/definitionen/designer" className="btn whitespace-nowrap">
             <GitBranch size={14} /> Designer oeffnen
           </Link>
-          <Link to="/admin/upload" className="btn btn-ghost whitespace-nowrap">
+          <Link to="/admin/definitionen/upload" className="btn btn-ghost whitespace-nowrap">
             <Upload size={14} /> Datei hochladen
           </Link>
         </div>
@@ -183,7 +183,7 @@ function DiffLink({ current, all }: { current: FormDefinition; all: FormDefiniti
   if (!previous) return null;
   return (
     <Link
-      to={`/admin/diff/${previous.id}/${current.id}`}
+      to={`/admin/definitionen/diff/${previous.id}/${current.id}`}
       className="btn btn-ghost text-[12px] px-3 py-1.5"
     >
       Diff zu {previous.version} <ArrowRight size={12} />

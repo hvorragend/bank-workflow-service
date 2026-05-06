@@ -294,12 +294,28 @@ def _seed(db) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. Verschluesselung verfuegbar? Sonst hier sofort scheitern.
+    from . import bootstrap
+    bootstrap.assert_encryption_available()
+
+    # 2. Tabellen anlegen (Quickstart) und Demo-Daten seeden.
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         _seed(db)
-    # SLA-Scheduler hochfahren — ist No-op, wenn ESCALATION_ENABLED=False.
+
+    # 3. Permission-Katalog + Default-Rollen + Admin-Rolle + Singletons + Templates.
+    with SessionLocal() as db:
+        bootstrap.seed_permission_catalog(db)
+        bootstrap.ensure_default_roles(db)
+        bootstrap.ensure_admin_role(db)
+        bootstrap.ensure_singleton_configs(db)
+        bootstrap.ensure_default_templates(db)
+        bootstrap.import_legacy_files_if_present(db)
+        bootstrap.ensure_emergency_admin_or_die(db)
+
+    # 4. SLA-Scheduler hochfahren — liest jetzt aus der DB.
     from .escalation import scheduler as escalation_scheduler
-    escalation_scheduler.start()
+    escalation_scheduler.start_from_db()
     try:
         yield
     finally:

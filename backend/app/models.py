@@ -7,7 +7,17 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -179,3 +189,195 @@ class ApiToken(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Admin-Panel-Modelle (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+class User(Base):
+    """DB-persistierter User. Ersetzt config/users.json. Notfall-User leben weiter
+    als JSON-Datei (config/emergency_users.json); sie bekommen beim Login einen
+    eigenen Audit-Pfad und tauchen nicht in dieser Tabelle auf.
+    """
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    username: Mapped[str] = mapped_column(String(150), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    auth_source: Mapped[str] = mapped_column(String(20))  # local | ldap
+    password_argon2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
+    ldap_dn: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    roles: Mapped[list[Role]] = relationship(secondary="user_roles", lazy="selectin")
+
+
+class Role(Base):
+    """Rolle als zuweisbare Sammlung von Permissions. 'Admin' ist `is_system=True`
+    und nicht loeschbar. Workflow-Stage-Rollen (Vorstand, Compliance, ...) werden
+    in der Migration als Default-Rollen geseedet.
+    """
+    __tablename__ = "roles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    permissions: Mapped[list[Permission]] = relationship(secondary="role_permissions", lazy="selectin")
+
+
+class Permission(Base):
+    """Permission-Code aus dem Katalog (z. B. 'admin.users.write').
+    Quelle ist app/auth/permission_catalog.py — beim Start re-seeded.
+    """
+    __tablename__ = "permissions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    area: Mapped[str] = mapped_column(String(40))
+    description: Mapped[str] = mapped_column(String(500))
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    role_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    permission_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    role_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("roles.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
+class LdapConfig(Base):
+    """Single-Row-Tabelle (id=1) mit der aktuellen LDAP-Konfiguration.
+    Sensible Felder (Service-Account-Passwort) liegen Fernet-verschluesselt.
+    """
+    __tablename__ = "ldap_config"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_ldap_config_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # immer 1
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    server: Mapped[str] = mapped_column(String(500), default="")
+    bind_user_template: Mapped[str] = mapped_column(String(500), default="")
+    search_base: Mapped[str] = mapped_column(String(500), default="")
+    group_search_base: Mapped[str] = mapped_column(String(500), default="")
+    group_filter: Mapped[str] = mapped_column(String(500), default="(member={user_dn})")
+    tls_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    ca_cert_pem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=5)
+    service_account_dn: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    service_account_pw_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_filter: Mapped[str] = mapped_column(String(500), default="(uid={username})")
+    attr_username: Mapped[str] = mapped_column(String(80), default="uid")
+    attr_display_name: Mapped[str] = mapped_column(String(80), default="displayName")
+    attr_email: Mapped[str] = mapped_column(String(80), default="mail")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    updated_by: Mapped[str] = mapped_column(String(150), default="system")
+
+
+class LdapRoleMapping(Base):
+    """N Rows: LDAP-Group-DN -> Role. Ersetzt role_mapping aus ldap.toml."""
+    __tablename__ = "ldap_role_mapping"
+    __table_args__ = (UniqueConstraint("group_dn", "role_id", name="uq_ldap_role_mapping"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    group_dn: Mapped[str] = mapped_column(String(500), index=True)
+    role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id", ondelete="CASCADE"))
+
+
+class SmtpConfig(Base):
+    """Single-Row-Tabelle (id=1). Passwort liegt Fernet-verschluesselt."""
+    __tablename__ = "smtp_config"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_smtp_config_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    host: Mapped[str] = mapped_column(String(255), default="localhost")
+    port: Mapped[int] = mapped_column(Integer, default=1025)
+    use_tls: Mapped[bool] = mapped_column(Boolean, default=False)
+    username: Mapped[str] = mapped_column(String(255), default="")
+    password_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mail_from: Mapped[str] = mapped_column(String(320), default="noreply@bws.local")
+    app_url: Mapped[str] = mapped_column(String(500), default="http://localhost:8080")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    updated_by: Mapped[str] = mapped_column(String(150), default="system")
+
+
+class EscalationConfig(Base):
+    """Single-Row-Tabelle (id=1) fuer SLA-Eskalations-Scheduler."""
+    __tablename__ = "escalation_config"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_escalation_config_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    default_sla_days: Mapped[int] = mapped_column(Integer, default=14)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    bereichsleiter_role_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    updated_by: Mapped[str] = mapped_column(String(150), default="system")
+
+
+class RoleEmail(Base):
+    """N Rows: zusaetzliche Empfaenger-Adressen pro Rolle (Gruppenpostfaecher).
+    Ersetzt config/role_emails.toml. Ergaenzt — nicht ersetzt — die Mail aus den
+    User-Eintraegen mit der entsprechenden Rolle.
+    """
+    __tablename__ = "role_emails"
+    __table_args__ = (UniqueConstraint("role_id", "email", name="uq_role_email"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+
+
+class NotificationTemplate(Base):
+    """E-Mail-Template, gepflegt im Admin-Panel. body verwendet $varname-Syntax
+    (string.Template.safe_substitute) — bewusst kein Jinja, damit Admins kein
+    Code injizieren koennen.
+    """
+    __tablename__ = "notification_templates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    # bekannte Keys: stage_review_pending | approved | rejected | returned
+    #                | sla_erinnerung | sla_eskalation
+    subject: Mapped[str] = mapped_column(String(500))
+    body: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    updated_by: Mapped[str] = mapped_column(String(150), default="system")
+
+
+class AppSetting(Base):
+    """Kleines Key-Value-Lager fuer Runtime-Toggles (auth.mode, login_rate_limit, ...).
+    Bewusst kein generischer Settings-Blob fuer typisierte Configs — diese liegen
+    als getypte Single-Row-Tabellen oben.
+    """
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[str] = mapped_column(String(500))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    updated_by: Mapped[str] = mapped_column(String(150), default="system")

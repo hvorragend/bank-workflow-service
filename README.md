@@ -51,24 +51,37 @@ seit Commit 2 auth-pflichtig. Es gibt zwei Modi, gesteuert über `AUTH_MODE`:
   unbekannt. **Nicht** bei „LDAP kennt User, Passwort falsch" — das wäre ein
   Credential-Stuffing-Risiko.
 
+Seit dem Admin-Panel werden **Auth-Modus, lokale User, LDAP-Konfiguration,
+SMTP, Notification-Templates, Rollen-Empfänger und SLA-Eskalation komplett
+in der DB gepflegt** und über das UI unter `/admin` konfiguriert. Lokale
+Dateien bleiben nur für echtes Bootstrap-/Notfall-Material.
+
 **Pflicht-Umgebungsvariablen:**
 
 | Variable | Bedeutung |
 |---|---|
 | `JWT_SECRET` | Mindestens 32 Bytes Zufallswert, z. B. `openssl rand -hex 32` |
-| `AUTH_MODE` | `local`, `ldap` oder `both` (Default: `local`) |
+| `CONFIG_ENCRYPTION_KEY` | Fernet-Schlüssel zum Verschlüsseln von SMTP- und LDAP-Service-Passwörtern in der DB. Generieren: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` |
+| `DATABASE_URL` | DB-Verbindung (SQLite oder Postgres) |
+| `CONFIG_ENCRYPTION_KEY_OLD` | *Optional* — alter Schlüssel als Decrypt-Fallback während einer Rotation. |
 
-**Lokaler Fallback einrichten:**
+**Notfall-Admin (Break-Glass) einrichten:**
 
 ```bash
-cp config/users.example.json config/users.json
-# Hash für jedes User-Passwort erzeugen:
+cp config/emergency_users.example.json config/emergency_users.json
+# Hash für das Notfall-Passwort erzeugen:
 python -m app.auth.hash_password
-# Den ausgegebenen Hash in config/users.json beim entsprechenden User eintragen.
+# Den Hash in config/emergency_users.json eintragen.
 ```
 
-`config/users.json` und `config/ldap.toml` sind über `.gitignore` ausgeschlossen — sie
-enthalten Geheimnisse und gehören nicht ins Repo.
+Der Notfall-User wird **nur** geladen, wenn (a) die DB unerreichbar ist
+oder (b) kein aktiver Admin in der `users`-Tabelle existiert. Jeder
+Login über diesen Pfad erscheint im Audit-Log als `auth.login.emergency`.
+
+`config/emergency_users.json` ist über `.gitignore` ausgeschlossen.
+Brownfield-Upgrades importieren bestehende `config/users.json` und
+`config/role_emails.toml` automatisch in die DB; danach werden die
+Dateien nicht mehr gelesen und können entfernt werden.
 
 ## Quickstart
 
@@ -86,6 +99,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 export JWT_SECRET=$(openssl rand -hex 32)
+export CONFIG_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
 uvicorn app.main:app --reload
 ```
 
@@ -97,6 +111,7 @@ python -m venv .venv
 .venv\Scripts\activate.bat
 pip install -e ".[dev]"
 set JWT_SECRET=replace-with-openssl-rand-hex-32
+set CONFIG_ENCRYPTION_KEY=replace-with-fernet-generate-key-output
 uvicorn app.main:app --reload
 ```
 

@@ -136,7 +136,8 @@ export interface AuthUser {
   name: string;
   email: string;
   roles: string[];
-  auth_source: "local" | "ldap";
+  permissions: string[];
+  auth_source: "local" | "ldap" | "emergency";
   token_expires_at?: string;
 }
 

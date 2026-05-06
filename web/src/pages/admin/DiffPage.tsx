@@ -38,7 +38,7 @@ export function DiffPage() {
   return (
     <section>
       <Link
-        to="/admin"
+        to="/admin/definitionen"
         className="inline-flex items-center gap-1.5 text-quiet hover:text-accent font-mono text-[11px] uppercase tracking-widest mb-6"
       >
         <ArrowLeft size={14} /> Zurueck zur Maskenverwaltung

@@ -235,7 +235,7 @@ function DesignerInner() {
     mutationFn: uploadDefinition,
     onSuccess: (def) => {
       show(`Definition ${def.typ} ${def.version} angelegt (Status: ${def.status}).`);
-      navigate("/admin");
+      navigate("/admin/definitionen");
     },
     onError: (e: any) => setError(e?.detail || (e as Error).message),
   });
@@ -434,7 +434,7 @@ function DesignerInner() {
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => navigate("/admin")}
+              onClick={() => navigate("/admin/definitionen")}
             >
               Abbrechen
             </button>

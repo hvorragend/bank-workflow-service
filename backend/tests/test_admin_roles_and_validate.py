@@ -7,11 +7,11 @@ from .conftest import auth_header, login_as
 def test_list_roles_returns_known_roles(client, admin_auth):
     r = client.get("/admin/roles", headers=admin_auth)
     assert r.status_code == 200
-    body = r.json()
-    assert isinstance(body["roles"], list)
-    # conftest.TEST_USERS deckt alle wesentlichen Rollen ab.
+    roles = r.json()  # /admin/roles liefert seit dem Admin-Panel-Refactor RoleOut[]
+    assert isinstance(roles, list)
+    names = {r["name"] for r in roles}
     for needed in {"Admin", "Vorstand", "Compliance", "Fachbereichsleiter", "Risikomanagement", "Bereichsleiter"}:
-        assert needed in body["roles"], body["roles"]
+        assert needed in names, names
 
 
 def test_list_roles_blocks_non_admin(client):

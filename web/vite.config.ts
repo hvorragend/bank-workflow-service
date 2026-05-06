@@ -17,6 +17,8 @@ export default defineConfig({
       "/auth":        { target: "http://localhost:8000", changeOrigin: true },
       "/instances":   { target: "http://localhost:8000", changeOrigin: true },
       "/definitions": { target: "http://localhost:8000", changeOrigin: true },
+      "/admin":       { target: "http://localhost:8000", changeOrigin: true },
+      "/reporting":   { target: "http://localhost:8000", changeOrigin: true },
       "/health":      { target: "http://localhost:8000", changeOrigin: true },
       "/ready":       { target: "http://localhost:8000", changeOrigin: true },
       "/legacy":      { target: "http://localhost:8000", changeOrigin: true },
