@@ -27,11 +27,29 @@ _KEY_HOWTO = (
     "und setze ihn als CONFIG_ENCRYPTION_KEY in der Umgebung."
 )
 
+# Werte, die in deploy/.env.example als Platzhalter stehen. Wenn jemand
+# .env.example nach .env kopiert und nur einen Teil ersetzt, fangen wir das
+# hier mit einer sehr deutlichen Meldung ab — sonst kommt nur ein generisches
+# „Incorrect padding" aus cryptography zurueck und der Operator raetselt.
+_PLACEHOLDER_VALUES = frozenset({
+    "replace-with-fernet-generate-key-output",
+    "replace-with-openssl-rand-hex-32",
+    "replace-me",
+    "replace-me-in-production",
+    "changeme",
+})
+
 
 def _load_key(env_name: str) -> bytes | None:
     raw = os.getenv(env_name, "").strip()
     if not raw:
         return None
+    if raw in _PLACEHOLDER_VALUES:
+        raise EncryptionUnavailable(
+            f"{env_name} steht noch auf dem Platzhalter '{raw}' aus "
+            "deploy/.env.example. Du hast die Beispieldatei kopiert, aber "
+            "den Wert nicht ersetzt. " + _KEY_HOWTO
+        )
     return raw.encode("ascii")
 
 
