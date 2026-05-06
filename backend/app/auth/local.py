@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timezone
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -67,7 +67,7 @@ def authenticate_local(db: Session, username: str, password: str) -> Authenticat
         # Sonst Konstantzeit-Dummy-Verify und konsistenter Fehler.
         try:
             _hasher.verify(_TIMING_DUMMY_HASH, password)
-        except VerifyMismatchError:
+        except VerificationError:
             pass
         raise LocalAuthError("User nicht gefunden.")
 
@@ -80,6 +80,24 @@ def authenticate_local(db: Session, username: str, password: str) -> Authenticat
         _hasher.verify(user_row.password_argon2, password)
     except VerifyMismatchError:
         raise LocalAuthError("Passwort falsch.") from None
+    except (InvalidHashError, VerificationError, UnicodeEncodeError, ValueError, TypeError) as e:
+        # Ein im users.json hinterlegter Platzhalter wie
+        # 'ERSETZEN — Hash aus python -m app.auth.hash_password' enthaelt
+        # ein Em-Dash und scheitert bereits an _ensure_bytes (UnicodeEncodeError);
+        # ein nur-ASCII-Platzhalter scheitert an InvalidHashError. Beides
+        # wuerde sonst als ungefangene Exception zu 500/502 hinter dem
+        # Reverse-Proxy fuehren. Wir behandeln das wie einen unbekannten
+        # User und geben dem Operator einen klaren Hinweis ins Log.
+        log.error(
+            "User '%s' hat einen ungueltigen argon2-Hash in der DB (%s: %s). "
+            "Wahrscheinlich wurde der Platzhalter aus users.example.json "
+            "uebernommen, ohne mit 'python -m app.auth.hash_password' einen "
+            "echten Hash zu erzeugen. Login wird als 401 abgewiesen.",
+            username,
+            type(e).__name__,
+            e,
+        )
+        raise LocalAuthError("User hat keinen gueltigen Passwort-Hash.") from None
 
     user_row.last_login_at = datetime.now(timezone.utc)
     db.commit()
@@ -134,7 +152,7 @@ def _try_emergency_or_fail(username: str, password: str) -> AuthenticatedUser:
     if not emergency:
         try:
             _hasher.verify(_TIMING_DUMMY_HASH, password)
-        except VerifyMismatchError:
+        except VerificationError:
             pass
         raise LocalAuthError("User nicht gefunden (DB unerreichbar, Notfall-User unbekannt).")
     return _verify_emergency(emergency, password)
@@ -145,6 +163,16 @@ def _verify_emergency(eu, password: str) -> AuthenticatedUser:
         _hasher.verify(eu.password_argon2, password)
     except VerifyMismatchError:
         raise LocalAuthError("Passwort falsch.") from None
+    except (InvalidHashError, VerificationError, UnicodeEncodeError, ValueError, TypeError) as e:
+        log.error(
+            "Notfall-User '%s' hat einen ungueltigen argon2-Hash in "
+            "emergency_users.json (%s: %s). Hash bitte mit "
+            "'python -m app.auth.hash_password' neu erzeugen.",
+            eu.username,
+            type(e).__name__,
+            e,
+        )
+        raise LocalAuthError("Notfall-User hat keinen gueltigen Passwort-Hash.") from None
     return AuthenticatedUser(
         username=eu.username,
         name=eu.display_name,

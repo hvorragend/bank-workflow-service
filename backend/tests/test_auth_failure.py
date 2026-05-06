@@ -21,6 +21,46 @@ def test_login_with_unknown_user_returns_401(client):
     assert r.status_code == 401
 
 
+def test_login_with_invalid_argon2_hash_returns_401_not_500(client):
+    """Regressionstest: ein in users.json hinterlegter Platzhalter-Hash (z. B.
+    'ERSETZEN' aus users.example.json) darf keine 500/502 produzieren —
+    sonst wirkt der Login-Endpunkt fuer Operatoren wie ein Backend-Crash.
+    Wir manipulieren dafuer den admin-User auf einen offensichtlich kaputten
+    Hash und versuchen einen Login.
+    """
+    from sqlalchemy import update
+    from app import models
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        original = db.scalar(
+            db.query(models.User.password_argon2)
+            .filter(models.User.username == "compliance")
+            .statement
+        )
+        db.execute(
+            update(models.User)
+            .where(models.User.username == "compliance")
+            .values(password_argon2="ERSETZEN — Hash aus python -m app.auth.hash_password")
+        )
+        db.commit()
+
+    try:
+        r = client.post("/auth/login", json={"username": "compliance", "password": TEST_PASSWORD})
+        assert r.status_code == 401, (
+            f"Erwartet 401 bei kaputtem Hash, bekommen {r.status_code}: {r.text}"
+        )
+        assert "ungueltig" in r.json()["detail"].lower()
+    finally:
+        with SessionLocal() as db:
+            db.execute(
+                update(models.User)
+                .where(models.User.username == "compliance")
+                .values(password_argon2=original)
+            )
+            db.commit()
+
+
 def test_protected_endpoint_without_token_returns_401(client):
     r = client.get("/instances")
     assert r.status_code == 401
