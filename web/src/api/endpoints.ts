@@ -131,7 +131,7 @@ export async function uploadDefinition(p: UploadDefinitionPayload): Promise<Form
   fd.set("ui_schema",   p.ui_schema);
 
   const token = getAccessToken();
-  const r = await fetch("/admin/definitions/upload", {
+  const r = await fetch("/api/admin/definitions/upload", {
     method: "POST",
     body: fd,
     credentials: "include",
@@ -164,7 +164,7 @@ export async function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Prom
   fd.set("ui_schema",   p.ui_schema);
 
   const token = getAccessToken();
-  const r = await fetch("/admin/definitions/upload-bpmn", {
+  const r = await fetch("/api/admin/definitions/upload-bpmn", {
     method: "POST",
     body: fd,
     credentials: "include",
@@ -181,13 +181,13 @@ export async function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Prom
 export function listAdminRoles(): Promise<{ roles: string[] }> {
   // /admin/roles liefert RoleOut[] (nach Admin-Panel-Refactor). Wir extrahieren
   // nur die Namen — der Designer braucht sie fuer das Rollen-Dropdown am User-Task.
-  return api<Array<{ name: string }>>("/admin/roles").then((rs) => ({
+  return api<Array<{ name: string }>>("/api/admin/roles").then((rs) => ({
     roles: rs.map((r) => r.name),
   }));
 }
 
 export function validateGraph(graph: WorkflowGraph): Promise<{ ok: true }> {
-  return api<{ ok: true }>("/admin/definitions/validate-graph", {
+  return api<{ ok: true }>("/api/admin/definitions/validate-graph", {
     method: "POST",
     body: JSON.stringify({ workflow_graph: graph }),
   });
@@ -208,7 +208,7 @@ export interface DiffResult {
 }
 
 export function diffDefinitions(aId: string, bId: string): Promise<DiffResult> {
-  return api<DiffResult>(`/admin/definitions/${aId}/diff/${bId}`);
+  return api<DiffResult>(`/api/admin/definitions/${aId}/diff/${bId}`);
 }
 
 export function activateDefinition(id: string): Promise<FormDefinition> {
@@ -216,7 +216,7 @@ export function activateDefinition(id: string): Promise<FormDefinition> {
 }
 
 export function retireDefinition(id: string): Promise<FormDefinition> {
-  return api<FormDefinition>(`/admin/definitions/${id}/retire`, { method: "POST" });
+  return api<FormDefinition>(`/api/admin/definitions/${id}/retire`, { method: "POST" });
 }
 
 export interface AuditEvent {
@@ -247,7 +247,7 @@ export function listAudit(params: ListAuditParams = {}): Promise<AuditEvent[]> {
   if (params.limit !== undefined) sp.set("limit", String(params.limit));
   if (params.sort)      sp.set("sort", params.sort);
   const qs = sp.toString();
-  return api<AuditEvent[]>(`/admin/audit${qs ? "?" + qs : ""}`);
+  return api<AuditEvent[]>(`/api/admin/audit${qs ? "?" + qs : ""}`);
 }
 
 // --- Datei-Anhaenge (Phase 2 / Commit 6) ---
