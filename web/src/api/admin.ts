@@ -48,29 +48,29 @@ export function listUsers(params: ListUsersParams = {}): Promise<AdminUser[]> {
   if (params.role) sp.set("role", params.role);
   if (params.limit !== undefined) sp.set("limit", String(params.limit));
   const qs = sp.toString();
-  return api<AdminUser[]>(`/admin/users${qs ? "?" + qs : ""}`);
+  return api<AdminUser[]>(`/api/admin/users${qs ? "?" + qs : ""}`);
 }
 
-export const getUser = (id: string) => api<AdminUser>(`/admin/users/${id}`);
+export const getUser = (id: string) => api<AdminUser>(`/api/admin/users/${id}`);
 
 export const createUser = (p: UserCreatePayload) =>
-  api<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(p) });
+  api<AdminUser>("/api/admin/users", { method: "POST", body: JSON.stringify(p) });
 
 export const updateUser = (id: string, p: UserUpdatePayload) =>
-  api<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(p) });
+  api<AdminUser>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(p) });
 
 export const setUserRoles = (id: string, role_ids: string[]) =>
-  api<AdminUser>(`/admin/users/${id}/roles`, {
+  api<AdminUser>(`/api/admin/users/${id}/roles`, {
     method: "PUT", body: JSON.stringify({ role_ids }),
   });
 
 export const setUserPassword = (id: string, password: string) =>
-  api<void>(`/admin/users/${id}/password`, {
+  api<void>(`/api/admin/users/${id}/password`, {
     method: "POST", body: JSON.stringify({ password }),
   });
 
 export const deactivateUser = (id: string) =>
-  api<void>(`/admin/users/${id}`, { method: "DELETE" });
+  api<void>(`/api/admin/users/${id}`, { method: "DELETE" });
 
 // ---------- Roles & Permissions ----------
 
@@ -89,29 +89,29 @@ export interface AdminPermission {
   description: string;
 }
 
-export const listRoles = () => api<AdminRole[]>("/admin/roles");
-export const getRole = (id: string) => api<AdminRole>(`/admin/roles/${id}`);
+export const listRoles = () => api<AdminRole[]>("/api/admin/roles");
+export const getRole = (id: string) => api<AdminRole>(`/api/admin/roles/${id}`);
 
 export const createRole = (p: {
   name: string;
   description?: string | null;
   permission_codes: string[];
-}) => api<AdminRole>("/admin/roles", { method: "POST", body: JSON.stringify(p) });
+}) => api<AdminRole>("/api/admin/roles", { method: "POST", body: JSON.stringify(p) });
 
 export const updateRole = (id: string, p: {
   name?: string;
   description?: string | null;
-}) => api<AdminRole>(`/admin/roles/${id}`, { method: "PATCH", body: JSON.stringify(p) });
+}) => api<AdminRole>(`/api/admin/roles/${id}`, { method: "PATCH", body: JSON.stringify(p) });
 
 export const deleteRole = (id: string) =>
-  api<void>(`/admin/roles/${id}`, { method: "DELETE" });
+  api<void>(`/api/admin/roles/${id}`, { method: "DELETE" });
 
 export const setRolePermissions = (id: string, codes: string[]) =>
-  api<AdminRole>(`/admin/roles/${id}/permissions`, {
+  api<AdminRole>(`/api/admin/roles/${id}/permissions`, {
     method: "PUT", body: JSON.stringify({ permission_codes: codes }),
   });
 
-export const listPermissions = () => api<AdminPermission[]>("/admin/permissions");
+export const listPermissions = () => api<AdminPermission[]>("/api/admin/permissions");
 
 // ---------- Auth-Mode ----------
 
@@ -120,10 +120,10 @@ export interface AuthModeOut {
   login_rate_limit: string;
 }
 
-export const getAuthMode = () => api<AuthModeOut>("/admin/auth-mode");
+export const getAuthMode = () => api<AuthModeOut>("/api/admin/auth-mode");
 
 export const setAuthMode = (p: { mode: AuthModeOut["mode"]; login_rate_limit?: string }) =>
-  api<AuthModeOut>("/admin/auth-mode", { method: "PUT", body: JSON.stringify(p) });
+  api<AuthModeOut>("/api/admin/auth-mode", { method: "PUT", body: JSON.stringify(p) });
 
 // ---------- LDAP ----------
 
@@ -165,9 +165,9 @@ export type LdapConfigUpdate = Partial<{
   attr_email: string;
 }>;
 
-export const getLdap = () => api<LdapConfig>("/admin/ldap");
+export const getLdap = () => api<LdapConfig>("/api/admin/ldap");
 export const setLdap = (p: LdapConfigUpdate) =>
-  api<LdapConfig>("/admin/ldap", { method: "PUT", body: JSON.stringify(p) });
+  api<LdapConfig>("/api/admin/ldap", { method: "PUT", body: JSON.stringify(p) });
 
 export interface LdapMapping {
   id: string;
@@ -177,15 +177,15 @@ export interface LdapMapping {
 }
 
 export const listLdapMappings = () =>
-  api<LdapMapping[]>("/admin/ldap/role-mapping");
+  api<LdapMapping[]>("/api/admin/ldap/role-mapping");
 
 export const createLdapMapping = (p: { group_dn: string; role_id: string }) =>
-  api<LdapMapping>("/admin/ldap/role-mapping", {
+  api<LdapMapping>("/api/admin/ldap/role-mapping", {
     method: "POST", body: JSON.stringify(p),
   });
 
 export const deleteLdapMapping = (id: string) =>
-  api<void>(`/admin/ldap/role-mapping/${id}`, { method: "DELETE" });
+  api<void>(`/api/admin/ldap/role-mapping/${id}`, { method: "DELETE" });
 
 export interface LdapTestResult {
   ok: boolean;
@@ -196,7 +196,7 @@ export interface LdapTestResult {
 }
 
 export const testLdapBind = (username: string, password: string) =>
-  api<LdapTestResult>("/admin/ldap/test-bind", {
+  api<LdapTestResult>("/api/admin/ldap/test-bind", {
     method: "POST", body: JSON.stringify({ username, password }),
   });
 
@@ -211,13 +211,13 @@ export interface LdapSyncJob {
 }
 
 export const startLdapSync = (dry_run = false) =>
-  api<LdapSyncJob>(`/admin/ldap/sync${dry_run ? "?dry_run=true" : ""}`, { method: "POST" });
+  api<LdapSyncJob>(`/api/admin/ldap/sync${dry_run ? "?dry_run=true" : ""}`, { method: "POST" });
 
 export const listLdapSyncJobs = () =>
-  api<LdapSyncJob[]>("/admin/ldap/sync");
+  api<LdapSyncJob[]>("/api/admin/ldap/sync");
 
 export const getLdapSyncJob = (id: string) =>
-  api<LdapSyncJob>(`/admin/ldap/sync/${id}`);
+  api<LdapSyncJob>(`/api/admin/ldap/sync/${id}`);
 
 // ---------- SMTP & Notifications ----------
 
@@ -245,12 +245,12 @@ export type SmtpConfigUpdate = Partial<{
   app_url: string;
 }>;
 
-export const getSmtp = () => api<SmtpConfig>("/admin/smtp");
+export const getSmtp = () => api<SmtpConfig>("/api/admin/smtp");
 export const setSmtp = (p: SmtpConfigUpdate) =>
-  api<SmtpConfig>("/admin/smtp", { method: "PUT", body: JSON.stringify(p) });
+  api<SmtpConfig>("/api/admin/smtp", { method: "PUT", body: JSON.stringify(p) });
 
 export const testSmtp = (to: string, subject?: string, body?: string) =>
-  api<{ ok: boolean; message: string }>("/admin/smtp/test", {
+  api<{ ok: boolean; message: string }>("/api/admin/smtp/test", {
     method: "POST",
     body: JSON.stringify({ to, subject, body }),
   });
@@ -264,13 +264,13 @@ export interface NotificationTemplate {
 }
 
 export const listTemplates = () =>
-  api<NotificationTemplate[]>("/admin/notifications/templates");
+  api<NotificationTemplate[]>("/api/admin/notifications/templates");
 
 export const getTemplate = (key: string) =>
-  api<NotificationTemplate>(`/admin/notifications/templates/${key}`);
+  api<NotificationTemplate>(`/api/admin/notifications/templates/${key}`);
 
 export const updateTemplate = (key: string, p: { subject: string; body: string }) =>
-  api<NotificationTemplate>(`/admin/notifications/templates/${key}`, {
+  api<NotificationTemplate>(`/api/admin/notifications/templates/${key}`, {
     method: "PUT", body: JSON.stringify(p),
   });
 
@@ -279,7 +279,7 @@ export const previewTemplate = (
   payload: { subject: string; body: string; context: Record<string, string> },
 ) =>
   api<{ key: string; subject: string; body: string }>(
-    `/admin/notifications/templates/${key}/preview`,
+    `/api/admin/notifications/templates/${key}/preview`,
     { method: "POST", body: JSON.stringify(payload) },
   );
 
@@ -291,11 +291,11 @@ export interface RoleEmail {
 }
 
 export const listRoleEmails = () =>
-  api<RoleEmail[]>("/admin/notifications/role-emails");
+  api<RoleEmail[]>("/api/admin/notifications/role-emails");
 
 export const setRoleEmails = (roleId: string, emails: string[]) =>
   api<{ role_id: string; role_name: string; emails: string[] }>(
-    `/admin/notifications/role-emails/${roleId}`,
+    `/api/admin/notifications/role-emails/${roleId}`,
     { method: "PUT", body: JSON.stringify({ emails }) },
   );
 
@@ -320,15 +320,15 @@ export type EscalationConfigUpdate = Partial<{
   bereichsleiter_role_id: string | null;
 }>;
 
-export const getEscalation = () => api<EscalationConfig>("/admin/escalation");
+export const getEscalation = () => api<EscalationConfig>("/api/admin/escalation");
 
 export const setEscalation = (p: EscalationConfigUpdate) =>
-  api<EscalationConfig>("/admin/escalation", {
+  api<EscalationConfig>("/api/admin/escalation", {
     method: "PUT", body: JSON.stringify(p),
   });
 
 export const runEscalationNow = () =>
-  api<{ counts: Record<string, number> }>("/admin/escalation/run-now", {
+  api<{ counts: Record<string, number> }>("/api/admin/escalation/run-now", {
     method: "POST",
   });
 
@@ -348,11 +348,11 @@ export interface SystemStatus {
   emergency_users_loaded: number;
 }
 
-export const getSystemStatus = () => api<SystemStatus>("/admin/system/status");
+export const getSystemStatus = () => api<SystemStatus>("/api/admin/system/status");
 
 export const rekeySecrets = () =>
   api<{ smtp_password: boolean; ldap_service_password: boolean }>(
-    "/admin/system/rekey-secrets", { method: "POST" },
+    "/api/admin/system/rekey-secrets", { method: "POST" },
   );
 
 // ---------- API-Tokens (Reporting) ----------
@@ -368,12 +368,12 @@ export interface ApiToken {
   revoked_at: string | null;
 }
 
-export const listApiTokens = () => api<ApiToken[]>("/admin/reporting-tokens");
+export const listApiTokens = () => api<ApiToken[]>("/api/admin/reporting-tokens");
 
 export const createApiToken = (p: { name: string; expires_at?: string | null }) =>
   api<ApiToken & { token: string; _warning: string }>(
-    "/admin/reporting-tokens", { method: "POST", body: JSON.stringify(p) },
+    "/api/admin/reporting-tokens", { method: "POST", body: JSON.stringify(p) },
   );
 
 export const revokeApiToken = (id: string) =>
-  api<void>(`/admin/reporting-tokens/${id}`, { method: "DELETE" });
+  api<void>(`/api/admin/reporting-tokens/${id}`, { method: "DELETE" });
