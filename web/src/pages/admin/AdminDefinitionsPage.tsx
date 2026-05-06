@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Upload } from "lucide-react";
+import { ArrowRight, GitBranch, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import {
@@ -49,9 +49,14 @@ export function AdminDefinitionsPage() {
             Version desselben Typs — die Versions-Garantie bleibt erhalten.
           </p>
         </div>
-        <Link to="/admin/definitionen/upload" className="btn whitespace-nowrap self-start">
-          <Upload size={14} /> Neue Version hochladen
-        </Link>
+        <div className="flex flex-wrap gap-2 self-start">
+          <Link to="/admin/definitionen/designer" className="btn whitespace-nowrap">
+            <GitBranch size={14} /> Designer oeffnen
+          </Link>
+          <Link to="/admin/definitionen/upload" className="btn btn-ghost whitespace-nowrap">
+            <Upload size={14} /> Datei hochladen
+          </Link>
+        </div>
       </header>
 
       <div className="paper p-0">

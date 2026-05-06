@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pytest
 
+from .conftest import approve_one
+
 
 VALID_V1_DATA = {
     "antragsteller": {
@@ -109,17 +111,12 @@ def test_full_approval_chain(client, admin_auth):
     assert r.status_code == 201
     iid = r.json()["id"]
 
-    assert client.post(
-        f"/instances/{iid}/submit", headers=admin_auth
-    ).json()["aktuelle_stage"] == "fachbereich"
+    submitted = client.post(f"/instances/{iid}/submit", headers=admin_auth).json()
+    assert {a["node_id"] for a in submitted["active_stages"]} == {"fachbereich"}
 
     # Admin hat alle Rollen — kann durch alle Stages durch genehmigen.
     for stage_name in ["fachbereich", "risikomgmt", "vorstand"]:
-        r = client.post(
-            f"/instances/{iid}/decide",
-            json={"entscheidung": "approved", "kommentar": f"OK in {stage_name}"},
-            headers=admin_auth,
-        )
+        r = approve_one(client, admin_auth, iid, kommentar=f"OK in {stage_name}")
         assert r.status_code == 200, r.text
 
     final = client.get(f"/instances/{iid}", headers=admin_auth).json()

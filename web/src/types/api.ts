@@ -50,10 +50,29 @@ export interface UiSchema {
   elements: UiGroup[];
 }
 
-export interface WorkflowStage {
-  name: string;
-  rolle: string;
+export type GraphNodeType =
+  | "start"
+  | "end"
+  | "user_task"
+  | "parallel_split"
+  | "parallel_join";
+
+export interface GraphNode {
+  id: string;
+  type: GraphNodeType;
+  label?: string;
+  rolle?: string;
   sla_days?: number;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+}
+
+export interface WorkflowGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 export interface FormDefinition {
@@ -63,7 +82,7 @@ export interface FormDefinition {
   titel: string;
   json_schema: JsonSchema;
   ui_schema: UiSchema;
-  workflow_stages: WorkflowStage[];
+  workflow_graph: WorkflowGraph;
   status: "draft" | "active" | "retired";
   gueltig_von: string;
   gueltig_bis: string | null;
@@ -88,20 +107,27 @@ export type InstanceStatus =
   | "abgelehnt"
   | "zurueckgewiesen";
 
+export interface ActiveStage {
+  node_id: string;
+  rolle: string;
+  eingetreten_am: string;
+  erinnerung_sent_at: string | null;
+  eskalation_sent_at: string | null;
+}
+
 export interface FormInstance {
   id: string;
   form_definition_id: string;
   daten: Record<string, any>;
   antragsteller: string;
-  aktuelle_stage: string;
   status: InstanceStatus;
   erstellt_am: string;
   abgeschlossen_am: string | null;
-  stage_eingetreten_am: string | null;
   approvals: Approval[];
+  active_stages: ActiveStage[];
   json_schema: JsonSchema;
   ui_schema: UiSchema;
-  workflow_stages: WorkflowStage[];
+  workflow_graph: WorkflowGraph;
   schema_version: string;
 }
 

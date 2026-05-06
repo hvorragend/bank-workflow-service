@@ -79,7 +79,17 @@ def test_schema_drift_rollback(client, admin_auth):
     }
     data = {
         "typ": "DR_Test", "version": "3.0.0", "titel": "DR-Test v3",
-        "workflow_stages": json.dumps([{"name": "fb", "rolle": "Fachbereichsleiter"}]),
+        "workflow_graph": json.dumps({
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "fb", "type": "user_task", "label": "Fachbereich", "rolle": "Fachbereichsleiter"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {"from": "start", "to": "fb"},
+                {"from": "fb", "to": "end"},
+            ],
+        }),
     }
     r = client.post("/admin/definitions/upload", data=data, files=files, headers=admin_auth)
     assert r.status_code == 201

@@ -127,6 +127,39 @@ def auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def approve_one(client: TestClient, headers: dict, instance_id: str, *, kommentar: str | None = None):
+    """Genehmigt den genau einen aktiven Task einer Instance. Fuer lineare
+    Workflows ohne parallele Branches die einfachste Form."""
+    state = client.get(f"/instances/{instance_id}", headers=headers).json()
+    actives = state.get("active_stages", [])
+    assert len(actives) == 1, f"Erwartet exakt 1 aktiver Task, gefunden {len(actives)}: {actives}"
+    body = {"node_id": actives[0]["node_id"], "entscheidung": "approved"}
+    if kommentar is not None:
+        body["kommentar"] = kommentar
+    return client.post(f"/instances/{instance_id}/decide", json=body, headers=headers)
+
+
+def approve_all_active(client: TestClient, headers: dict, instance_id: str, *, kommentar: str | None = None):
+    """Genehmigt alle gerade aktiven Tasks. Sinnvoll bei parallelen Branches:
+    eine Schleife aktiviert alle Branches eines Splits zugleich."""
+    state = client.get(f"/instances/{instance_id}", headers=headers).json()
+    for active in list(state.get("active_stages", [])):
+        body = {"node_id": active["node_id"], "entscheidung": "approved"}
+        if kommentar is not None:
+            body["kommentar"] = kommentar
+        client.post(f"/instances/{instance_id}/decide", json=body, headers=headers)
+
+
+def reject_one(client: TestClient, headers: dict, instance_id: str, *, kommentar: str | None = None):
+    state = client.get(f"/instances/{instance_id}", headers=headers).json()
+    actives = state.get("active_stages", [])
+    assert len(actives) >= 1, "Mind. 1 aktiver Task erforderlich, um abzulehnen."
+    body = {"node_id": actives[0]["node_id"], "entscheidung": "rejected"}
+    if kommentar is not None:
+        body["kommentar"] = kommentar
+    return client.post(f"/instances/{instance_id}/decide", json=body, headers=headers)
+
+
 @pytest.fixture(scope="module")
 def admin_token(client) -> str:
     return login_as(client, "admin")

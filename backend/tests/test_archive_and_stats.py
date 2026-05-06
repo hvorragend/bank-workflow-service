@@ -71,17 +71,15 @@ def test_filter_mein_only_owns(client):
 
 
 def test_filter_wartet_auf_mich(client):
-    """User mit Rolle Vorstand: wartet_auf_mich darf nur in_pruefung-Antraege liefern,
-    deren Stage-Rolle Vorstand ist."""
+    """User mit Rolle Vorstand: wartet_auf_mich darf nur Antraege liefern,
+    deren mind. ein aktiver Task die Vorstand-Rolle erfordert."""
     vorstand = login_as(client, "vorstand")
     headers = auth_header(vorstand)
     r = client.get("/instances?wartet_auf_mich=true", headers=headers)
     assert r.status_code == 200
     for i in r.json():
         assert i["status"] == "in_pruefung"
-        # Pro Antrag: aktuelle_stage hat eine "rolle", die in unseren Rollen ist
-        stage = next(s for s in i["workflow_stages"] if s["name"] == i["aktuelle_stage"])
-        assert stage["rolle"] == "Vorstand"
+        assert any(a["rolle"] == "Vorstand" for a in i["active_stages"])
 
 
 def test_csv_export(client, admin_auth):

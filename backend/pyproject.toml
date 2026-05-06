@@ -28,6 +28,8 @@ dependencies = [
   "apscheduler>=3.10.4",
   # Verschluesselung sensibler Config-Werte in der DB (Phase 4 / Admin-Panel)
   "cryptography>=42.0.0",
+  # BPMN-XML-Import: defusedxml fuer XXE-/Billion-Laughs-Schutz beim Parsen
+  "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]

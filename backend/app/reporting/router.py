@@ -41,15 +41,20 @@ def get_full_instance(
             "version": inst.definition.version,
             "json_schema": inst.definition.json_schema,
             "ui_schema": inst.definition.ui_schema,
-            "workflow_stages": inst.definition.workflow_stages,
+            "workflow_graph": inst.definition.workflow_graph,
         },
         "daten": inst.daten,
         "antragsteller": inst.antragsteller,
-        "aktuelle_stage": inst.aktuelle_stage,
         "status": inst.status,
         "erstellt_am": inst.erstellt_am.isoformat() if inst.erstellt_am else None,
         "abgeschlossen_am": inst.abgeschlossen_am.isoformat() if inst.abgeschlossen_am else None,
-        "stage_eingetreten_am": inst.stage_eingetreten_am.isoformat() if inst.stage_eingetreten_am else None,
+        "active_stages": [
+            {
+                "node_id": a.node_id, "rolle": a.rolle,
+                "eingetreten_am": a.eingetreten_am.isoformat() if a.eingetreten_am else None,
+            }
+            for a in inst.active_stages
+        ],
         "approvals": [
             {
                 "stage": a.stage, "rolle": a.rolle, "genehmiger": a.genehmiger,

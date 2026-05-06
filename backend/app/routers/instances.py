@@ -4,8 +4,9 @@ Mit Commit 2 sind alle /instances-Endpunkte auth-pflichtig. `genehmiger` und
 `rolle` werden aus dem JWT gelesen statt aus dem Request-Body — die Identitaet
 ist nicht mehr selbst-deklariert.
 
-Mit Commit 4 (Dashboard + Archiv) bekommt /instances Filter-Parameter und
-einen /stats-Endpoint fuer Kennzahlen.
+Mit der Umstellung auf einen Workflow-DAG koennen mehrere User-Tasks
+gleichzeitig aktiv sein (parallele Branches). Jede Entscheidung adressiert
+deshalb explizit die Knoten-ID des betroffenen Tasks.
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, workflow
@@ -25,6 +26,7 @@ from ..auth.dependencies import get_current_user
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 from ..notifications import dispatcher as notify
+from ..workflow_graph import nodes_by_id
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -37,15 +39,7 @@ def stats(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
-    """Kennzahlen fuer das Aktuelles-Dashboard.
-
-    - Counts pro Status, pro Stage
-    - Wartet auf den eingeloggten User (Stage-Rolle in user.roles)
-    - Eigene Antraege (antragsteller == user.username)
-    - Letzte 7 Tage: erstellt / abgeschlossen
-    - Durchschnittliche Bearbeitungsdauer in Tagen (genehmigte Antraege)
-    """
-    # Pro-Status-Counts
+    """Kennzahlen fuer das Aktuelles-Dashboard."""
     status_counts: dict[str, int] = dict(
         db.execute(
             select(models.FormInstance.status, func.count())
@@ -53,38 +47,26 @@ def stats(
         ).all()
     )
 
-    # Pro-Stage-Counts (nur in_pruefung)
+    # Pro-Stage-Counts (active stages aus der neuen Tabelle).
     stage_counts: dict[str, int] = dict(
         db.execute(
-            select(models.FormInstance.aktuelle_stage, func.count())
-            .where(models.FormInstance.status == "in_pruefung")
-            .group_by(models.FormInstance.aktuelle_stage)
+            select(models.FormInstanceActiveStage.node_id, func.count())
+            .group_by(models.FormInstanceActiveStage.node_id)
         ).all()
     )
 
-    # Wartet auf mich: alle in_pruefung-Antraege, deren Stage-Rolle in user.roles ist.
-    # Das machen wir in Python, weil workflow_stages JSON in SQLite ist und ein
-    # SQL-seitiger Filter nicht portabel waere.
-    pending = list(
-        db.scalars(
-            select(models.FormInstance).where(models.FormInstance.status == "in_pruefung")
-        ).all()
-    )
-    waiting_for_me = 0
-    for inst in pending:
-        stages = inst.definition.workflow_stages
-        match = next((s for s in stages if s["name"] == inst.aktuelle_stage), None)
-        if match and match.get("rolle") in user.roles:
-            waiting_for_me += 1
+    # Wartet auf mich: Anzahl aktiver Stages, deren Rolle in user.roles liegt.
+    waiting_for_me = db.scalar(
+        select(func.count(func.distinct(models.FormInstanceActiveStage.instance_id)))
+        .where(models.FormInstanceActiveStage.rolle.in_(user.roles))
+    ) or 0 if user.roles else 0
 
-    # Eigene Antraege
     own = db.scalar(
         select(func.count())
         .select_from(models.FormInstance)
         .where(models.FormInstance.antragsteller == user.username)
     ) or 0
 
-    # Letzte 7 Tage
     now = datetime.now(timezone.utc)
     cutoff = now - _timedelta_days(7)
     last7_created = db.scalar(
@@ -98,8 +80,6 @@ def stats(
         .where(models.FormInstance.abgeschlossen_am >= cutoff)
     ) or 0
 
-    # Durchschnittsdauer (genehmigte Antraege) — in Python, weil JULIANDAY/EXTRACT
-    # zwischen SQLite und Postgres unterschiedlich heisst.
     decided = list(
         db.scalars(
             select(models.FormInstance).where(models.FormInstance.status == "genehmigt")
@@ -133,7 +113,7 @@ def list_instances(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
     mein: bool = Query(False, description="Nur Antraege des eingeloggten Antragstellers"),
-    wartet_auf_mich: bool = Query(False, description="Nur Antraege, deren aktuelle Stage zu meinen Rollen passt"),
+    wartet_auf_mich: bool = Query(False, description="Nur Antraege mit aktivem Task in einer Rolle des Users"),
     status_in: list[str] | None = Query(None, alias="status", description="Status-Filter (Mehrfach erlaubt)"),
     typ: str | None = Query(None, description="Filter auf FormDefinition.typ"),
     version: str | None = Query(None, description="Filter auf FormDefinition.version"),
@@ -167,10 +147,18 @@ def list_instances(
         if version:
             stmt = stmt.where(models.FormDefinition.version == version)
 
+    if wartet_auf_mich and user.roles:
+        # Subquery: Instance-IDs mit aktivem Task in einer Rolle des Users.
+        sub = (
+            select(models.FormInstanceActiveStage.instance_id)
+            .where(models.FormInstanceActiveStage.rolle.in_(user.roles))
+            .distinct()
+        )
+        stmt = stmt.where(models.FormInstance.id.in_(sub))
+
     if sort == "created_asc":
         stmt = stmt.order_by(models.FormInstance.erstellt_am.asc())
     elif sort == "updated_desc":
-        # Naeherung: abgeschlossen_am, sonst erstellt_am
         stmt = stmt.order_by(
             func.coalesce(models.FormInstance.abgeschlossen_am, models.FormInstance.erstellt_am).desc()
         )
@@ -179,18 +167,6 @@ def list_instances(
 
     stmt = stmt.limit(limit).offset(offset)
     instances = list(db.scalars(stmt).all())
-
-    # "wartet auf mich" — Filter in Python, da Stage-Rollen in workflow_stages JSON liegen.
-    if wartet_auf_mich:
-        filtered = []
-        for inst in instances:
-            if inst.status != "in_pruefung":
-                continue
-            stages = inst.definition.workflow_stages
-            match = next((s for s in stages if s["name"] == inst.aktuelle_stage), None)
-            if match and match.get("rolle") in user.roles:
-                filtered.append(inst)
-        instances = filtered
 
     if format == "csv":
         return _csv_response(instances)
@@ -203,7 +179,7 @@ def _csv_response(instances: list[models.FormInstance]) -> Response:
     w = csv.writer(buf, dialect="excel", delimiter=";")
     w.writerow([
         "id", "schema_typ", "schema_version", "antragsteller", "status",
-        "aktuelle_stage", "erstellt_am", "abgeschlossen_am", "titel",
+        "aktive_stages", "erstellt_am", "abgeschlossen_am", "titel",
     ])
     for i in instances:
         titel = (
@@ -211,13 +187,14 @@ def _csv_response(instances: list[models.FormInstance]) -> Response:
             or (i.daten or {}).get("beschluss", {}).get("titel")
             or ""
         )
+        active_str = ",".join(sorted(a.node_id for a in i.active_stages))
         w.writerow([
             i.id,
             i.definition.typ,
             i.definition.version,
             i.antragsteller,
             i.status,
-            i.aktuelle_stage,
+            active_str,
             i.erstellt_am.isoformat() if i.erstellt_am else "",
             i.abgeschlossen_am.isoformat() if i.abgeschlossen_am else "",
             titel,
@@ -249,11 +226,7 @@ def create_instance(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
 ):
-    """Legt einen neuen Antrag an. Bindet ihn unwiderruflich an die gewaehlte FormDefinition.
-
-    Der `antragsteller` wird aus dem JWT abgeleitet — der Body-Wert (falls
-    mitgesendet) wird ignoriert.
-    """
+    """Legt einen neuen Antrag an. Bindet ihn unwiderruflich an die gewaehlte FormDefinition."""
     definition = db.get(models.FormDefinition, payload.form_definition_id)
     if not definition:
         raise HTTPException(404, "FormDefinition nicht gefunden.")
@@ -287,7 +260,6 @@ def get_instance(
     instance = db.get(models.FormInstance, instance_id)
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
-    # Re-validate on read — schuetzt vor Schema-Drift durch direkte DB-Schreibvorgaenge.
     _validate_against_definition(instance.daten, instance.definition)
     return _to_instance_with_schema(instance)
 
@@ -303,25 +275,25 @@ def submit_instance(
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
     try:
-        workflow.submit(instance)
+        activated = workflow.submit(instance)
     except workflow.WorkflowError as e:
         raise HTTPException(409, str(e))
     db.commit()
     db.refresh(instance)
 
-    # Empfaenger-Rolle der ersten Stage informieren — Versand im Hintergrund.
-    stage_def = next(
-        (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
-        None,
-    )
-    if stage_def:
+    # Pro initial aktiviertem Task eine Notification — bei direktem Parallel-Split
+    # nach dem Start sind das mehrere parallele Mails (das ist gewollt).
+    schema_version = f"{instance.definition.typ}/{instance.definition.version}"
+    by_id = nodes_by_id(instance.definition.workflow_graph)
+    for active in activated:
+        node = by_id.get(active.node_id, {})
         background.add_task(
             notify.notify_stage_review_pending,
             instance_id=instance.id,
             daten=instance.daten,
-            schema_version=f"{instance.definition.typ}/{instance.definition.version}",
-            stage=instance.aktuelle_stage,
-            rolle=stage_def["rolle"],
+            schema_version=schema_version,
+            stage=node.get("label") or active.node_id,
+            rolle=active.rolle,
             antragsteller=instance.antragsteller,
             erstellt_am=instance.erstellt_am,
         )
@@ -338,29 +310,30 @@ def decide_instance(
 ):
     """Genehmigen, ablehnen oder zur Ueberarbeitung zurueckweisen.
 
-    Identitaet (Genehmiger) und Rollen-Set kommen aus dem JWT; die zur aktuellen
-    Stage gehoerende Rolle muss eine der Rollen des Users sein.
+    `action.node_id` adressiert den konkreten aktiven User-Task — wichtig, wenn
+    parallele Branches gleichzeitig auf eine Entscheidung warten.
     """
     instance = db.get(models.FormInstance, instance_id)
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
-    # Stage-Rolle vor der Aenderung merken — fuer Reject/Returned-Mails.
-    pre_stage_def = next(
-        (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
+
+    # Rolle vor der Aenderung merken (fuer Reject-/Returned-Mails).
+    pre_active = next(
+        (a for a in instance.active_stages if a.node_id == action.node_id),
         None,
     )
-    pre_rolle = pre_stage_def["rolle"] if pre_stage_def else "?"
+    pre_rolle = pre_active.rolle if pre_active else "?"
 
     try:
-        workflow.decide(
+        _, newly_activated = workflow.decide(
             db, instance,
+            node_id=action.node_id,
             genehmiger=user.username,
             user_roles=user.roles,
             entscheidung=action.entscheidung,
             kommentar=action.kommentar,
         )
     except workflow.WorkflowError as e:
-        # 403, wenn die Rolle fehlt; 409 fuer alle anderen State-Probleme.
         msg = str(e)
         if "Erforderliche Rolle nicht vorhanden" in msg:
             raise HTTPException(status.HTTP_403_FORBIDDEN, msg)
@@ -369,8 +342,8 @@ def decide_instance(
     db.refresh(instance)
 
     schema_version = f"{instance.definition.typ}/{instance.definition.version}"
+    by_id = nodes_by_id(instance.definition.workflow_graph)
 
-    # Notifications je nach neuem Status (Background — Workflow ist bereits committed).
     if action.entscheidung == "approved":
         if instance.status == "genehmigt":
             background.add_task(
@@ -382,19 +355,15 @@ def decide_instance(
                 abgeschlossen_am=instance.abgeschlossen_am,
             )
         else:
-            # Naechste Stage: deren Rolle informieren
-            next_stage = next(
-                (s for s in instance.definition.workflow_stages if s["name"] == instance.aktuelle_stage),
-                None,
-            )
-            if next_stage:
+            for active in newly_activated:
+                node = by_id.get(active.node_id, {})
                 background.add_task(
                     notify.notify_stage_review_pending,
                     instance_id=instance.id,
                     daten=instance.daten,
                     schema_version=schema_version,
-                    stage=instance.aktuelle_stage,
-                    rolle=next_stage["rolle"],
+                    stage=node.get("label") or active.node_id,
+                    rolle=active.rolle,
                     antragsteller=instance.antragsteller,
                     erstellt_am=instance.erstellt_am,
                 )
@@ -429,14 +398,13 @@ def _to_instance_with_schema(instance: models.FormInstance) -> dict:
         "form_definition_id": instance.form_definition_id,
         "daten": instance.daten,
         "antragsteller": instance.antragsteller,
-        "aktuelle_stage": instance.aktuelle_stage,
         "status": instance.status,
         "erstellt_am": instance.erstellt_am,
         "abgeschlossen_am": instance.abgeschlossen_am,
-        "stage_eingetreten_am": instance.stage_eingetreten_am,
         "approvals": instance.approvals,
+        "active_stages": instance.active_stages,
         "json_schema": instance.definition.json_schema,
         "ui_schema": instance.definition.ui_schema,
-        "workflow_stages": instance.definition.workflow_stages,
+        "workflow_graph": instance.definition.workflow_graph,
         "schema_version": f"{instance.definition.typ}/{instance.definition.version}",
     }

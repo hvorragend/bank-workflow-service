@@ -15,6 +15,7 @@ import { AdminDefinitionsPage } from "@/pages/admin/AdminDefinitionsPage";
 import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { AuditLogPage } from "@/pages/admin/AuditLogPage";
+import { DesignerPage } from "@/pages/admin/DesignerPage";
 import { DiffPage } from "@/pages/admin/DiffPage";
 import { UploadDefinitionPage } from "@/pages/admin/UploadDefinitionPage";
 import { AuthModePage } from "@/pages/admin/auth/AuthModePage";
@@ -68,6 +69,8 @@ export const router = createBrowserRouter([
             </RequirePermission> },
           { path: "definitionen/upload", element:
             <RequirePermission permission="definitions.upload"><UploadDefinitionPage /></RequirePermission> },
+          { path: "definitionen/designer", element:
+            <RequirePermission permission="definitions.upload"><DesignerPage /></RequirePermission> },
           { path: "definitionen/diff/:aId/:bId", element:
             <RequirePermission permission="definitions.diff"><DiffPage /></RequirePermission> },
           { path: "audit", element:

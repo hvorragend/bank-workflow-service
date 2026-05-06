@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
+from .conftest import approve_one, auth_header, login_as, reject_one
+
 
 @pytest.fixture
 def enable_notifications():
@@ -80,8 +82,11 @@ def test_full_chain_sends_approved_mail_at_end(client, admin_auth, enable_notifi
     r = client.post("/instances", json={"form_definition_id": target["id"], "daten": daten}, headers=admin_auth)
     iid = r.json()["id"]
     client.post(f"/instances/{iid}/submit", headers=admin_auth)
+
+    # Drei Approvals durchklicken (admin hat alle Rollen) — AT-8.2 ist linear.
     for _ in range(3):
-        client.post(f"/instances/{iid}/decide", json={"entscheidung": "approved"}, headers=admin_auth)
+        approve_one(client, admin_auth, iid)
+
     assert any("Genehmigt" in m["subject"] for m in captured_mails), \
         [m["subject"] for m in captured_mails]
 
@@ -105,9 +110,8 @@ def test_rejection_mails_antragsteller(client, admin_auth, enable_notifications,
     iid = r.json()["id"]
     client.post(f"/instances/{iid}/submit", headers=admin_auth)
     captured_mails.clear()
-    client.post(f"/instances/{iid}/decide",
-                json={"entscheidung": "rejected", "kommentar": "Nicht hinreichend dokumentiert."},
-                headers=admin_auth)
+    reject_one(client, admin_auth, iid, kommentar="Nicht hinreichend dokumentiert.")
+
     assert any("Abgelehnt" in m["subject"] for m in captured_mails), \
         [m["subject"] for m in captured_mails]
 

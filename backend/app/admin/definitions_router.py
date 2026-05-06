@@ -1,31 +1,70 @@
 """Admin-Endpunkte fuer Workflow-Definitionen (Upload, Diff, Lifecycle).
 
 Bisher in admin/router.py — jetzt rausgespalten und auf require_permission migriert.
+Mit der DAG-Erweiterung kommt der grafische Designer hinzu: Definitionen werden
+als JSON-Graph ODER als BPMN-XML akzeptiert; in beiden Faellen laeuft die
+Persistenz durch den gleichen Validator (`workflow_graph.validate_graph`).
 """
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Iterable
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import audit, models, schemas as core_schemas
+from .. import audit, models, schemas as core_schemas, workflow_graph
 from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 from ..reporting.security import generate_token, hash_token
 from ._helpers import client_ip
+from .bpmn import BpmnImportError, parse_bpmn_to_graph
 from .diff import diff_schemas, summarize
 
 router = APIRouter(prefix="/admin", tags=["admin:definitions"])
 
 MAX_SCHEMA_BYTES = 256 * 1024
+MAX_BPMN_BYTES = 1 * 1024 * 1024  # 1 MB — Diagramme inkl. DI-Layout.
 
+
+def _known_role_names(db: Session) -> list[str]:
+    """Rollen, die im Designer-/BPMN-Validator als 'bekannt' gelten.
+
+    Entspricht 1:1 der Liste, die /admin/roles ausliefert — gespeichert
+    in `roles.name` (siehe roles_router.list_roles).
+    """
+    return list(db.scalars(select(models.Role.name).order_by(models.Role.name)).all())
+
+
+# ---------- Workflow-Graph-Validierung (Dry-Run) ----------
+
+@router.post("/definitions/validate-graph")
+def validate_graph_dryrun(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: AuthenticatedUser = Depends(require_permission("definitions.upload")),
+) -> dict:
+    """Validiert einen Workflow-Graph ohne ihn zu speichern. Gibt 200 mit
+    `{ok: true}` zurueck oder 422 mit dem Fehlertext.
+
+    Der Designer ruft das beim "Validieren"-Klick auf, um Knoten/Kanten-Fehler
+    sofort anzuzeigen, statt einen Upload zu verbrennen."""
+    graph = payload.get("workflow_graph")
+    if not isinstance(graph, dict):
+        raise HTTPException(400, "Feld 'workflow_graph' (Objekt) fehlt im Body.")
+    try:
+        workflow_graph.validate_graph(graph, known_roles=_known_role_names(db))
+    except workflow_graph.GraphError as e:
+        raise HTTPException(422, str(e)) from e
+    return {"ok": True}
+
+
+# ---------- Workflow-Upload (JSON-Graph) ----------
 
 @router.post(
     "/definitions/upload",
@@ -34,41 +73,105 @@ MAX_SCHEMA_BYTES = 256 * 1024
 )
 async def upload_definition(
     request: Request,
-    typ: str = Form(...),
-    version: str = Form(...),
-    titel: str = Form(...),
-    workflow_stages: str = Form(...),
+    typ: str = Form(..., description="Form-Typ, z. B. AT_8_2_Analyse"),
+    version: str = Form(..., description="SemVer-Version, z. B. 3.0.0"),
+    titel: str = Form(..., description="Anzeigename"),
+    workflow_graph_json: str = Form(
+        ...,
+        alias="workflow_graph",
+        description='JSON-Objekt {nodes:[...], edges:[...]} des Workflow-DAG',
+    ),
     json_schema: UploadFile = File(...),
     ui_schema: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(require_permission("definitions.upload")),
 ) -> models.FormDefinition:
+    """Laedt ein neues FormDefinition-Paket hoch und legt es als 'draft' an."""
+    js, ui = await _load_schema_pair(json_schema, ui_schema)
+    try:
+        graph = json.loads(workflow_graph_json)
+    except json.JSONDecodeError as e:
+        raise HTTPException(400, f"workflow_graph ist kein gueltiges JSON: {e}") from e
+    try:
+        workflow_graph.validate_graph(graph, known_roles=_known_role_names(db))
+    except workflow_graph.GraphError as e:
+        raise HTTPException(422, f"workflow_graph ungueltig: {e}") from e
+
+    return _persist_definition(
+        db=db, request=request, user=user,
+        typ=typ, version=version, titel=titel,
+        json_schema=js, ui_schema=ui, graph=graph,
+        audit_payload={"typ": typ, "version": version, "titel": titel, "source": "json"},
+    )
+
+
+# ---------- Workflow-Upload (BPMN-XML-Fallback) ----------
+
+@router.post(
+    "/definitions/upload-bpmn",
+    response_model=core_schemas.FormDefinitionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_definition_bpmn(
+    request: Request,
+    typ: str = Form(...),
+    version: str = Form(...),
+    titel: str = Form(...),
+    json_schema: UploadFile = File(...),
+    ui_schema: UploadFile = File(...),
+    bpmn_xml: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(require_permission("definitions.upload")),
+) -> models.FormDefinition:
+    """Wie /definitions/upload, aber statt JSON-Graph wird ein BPMN-XML akzeptiert.
+    Der Server parsed mit defusedxml, mappt das akzeptierte Subset auf den DAG
+    und ruft danach den gleichen Validator wie der JSON-Pfad."""
+    js, ui = await _load_schema_pair(json_schema, ui_schema)
+    bpmn_bytes = await bpmn_xml.read()
+    if len(bpmn_bytes) > MAX_BPMN_BYTES:
+        raise HTTPException(413, f"BPMN-Datei ueberschreitet {MAX_BPMN_BYTES // 1024} KB.")
+
+    try:
+        graph = parse_bpmn_to_graph(bpmn_bytes)
+    except BpmnImportError as e:
+        raise HTTPException(422, f"BPMN-Import fehlgeschlagen: {e}") from e
+    try:
+        workflow_graph.validate_graph(graph, known_roles=_known_role_names(db))
+    except workflow_graph.GraphError as e:
+        raise HTTPException(422, f"BPMN ergibt keinen gueltigen Workflow-Graph: {e}") from e
+
+    return _persist_definition(
+        db=db, request=request, user=user,
+        typ=typ, version=version, titel=titel,
+        json_schema=js, ui_schema=ui, graph=graph,
+        audit_payload={"typ": typ, "version": version, "titel": titel,
+                       "bpmn_bytes": len(bpmn_bytes), "source": "bpmn"},
+    )
+
+
+async def _load_schema_pair(json_schema: UploadFile, ui_schema: UploadFile) -> tuple[dict, dict]:
     js_bytes = await json_schema.read()
     ui_bytes = await ui_schema.read()
     if len(js_bytes) > MAX_SCHEMA_BYTES or len(ui_bytes) > MAX_SCHEMA_BYTES:
         raise HTTPException(413, f"Schema-Datei ueberschreitet {MAX_SCHEMA_BYTES // 1024} KB.")
-
     try:
         js = json.loads(js_bytes)
         ui = json.loads(ui_bytes)
     except json.JSONDecodeError as e:
         raise HTTPException(400, f"Ungueltiges JSON: {e}") from e
-
     try:
         Draft202012Validator.check_schema(js)
     except SchemaError as e:
         raise HTTPException(422, f"json_schema ist kein gueltiges Draft-2020-12-Schema: {e.message}") from e
+    return js, ui
 
-    try:
-        stages = json.loads(workflow_stages)
-        if not isinstance(stages, list) or not stages:
-            raise ValueError("workflow_stages muss eine nicht-leere Liste sein.")
-        for s in stages:
-            if not isinstance(s, dict) or "name" not in s or "rolle" not in s:
-                raise ValueError("Jede Stage braucht Felder 'name' und 'rolle'.")
-    except (json.JSONDecodeError, ValueError) as e:
-        raise HTTPException(400, f"workflow_stages ungueltig: {e}") from e
 
+def _persist_definition(
+    *, db: Session, request: Request, user: AuthenticatedUser,
+    typ: str, version: str, titel: str,
+    json_schema: dict, ui_schema: dict, graph: dict,
+    audit_payload: dict,
+) -> models.FormDefinition:
     existing = db.scalar(
         select(models.FormDefinition).where(
             models.FormDefinition.typ == typ,
@@ -80,7 +183,8 @@ async def upload_definition(
 
     d = models.FormDefinition(
         typ=typ, version=version, titel=titel,
-        json_schema=js, ui_schema=ui, workflow_stages=stages,
+        json_schema=json_schema, ui_schema=ui_schema,
+        workflow_graph=graph,
         status="draft", erstellt_von=user.username,
     )
     db.add(d)
@@ -89,14 +193,14 @@ async def upload_definition(
         db, kategorie="definition", action="definition.uploaded",
         akteur=user.username, target_type="FormDefinition", target_id=d.id,
         ip=client_ip(request),
-        payload={"typ": typ, "version": version, "titel": titel,
-                 "json_schema_bytes": len(js_bytes), "ui_schema_bytes": len(ui_bytes)},
-        commit=False,
+        payload=audit_payload, commit=False,
     )
     db.commit()
     db.refresh(d)
     return d
 
+
+# ---------- Diff ----------
 
 @router.get("/definitions/{a_id}/diff/{b_id}")
 def diff_definitions(
@@ -116,6 +220,8 @@ def diff_definitions(
         "summary": summarize(diffs),
     }
 
+
+# ---------- Retire ----------
 
 @router.post("/definitions/{definition_id}/retire", response_model=core_schemas.FormDefinitionOut)
 def retire(

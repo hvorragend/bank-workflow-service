@@ -14,7 +14,13 @@ function instanceTitle(i: FormInstance): string {
 
 function stageLabel(i: FormInstance): string {
   if (i.status === "entwurf") return "Entwurf";
-  return humanize(i.aktuelle_stage);
+  if (!i.active_stages || i.active_stages.length === 0) return humanize(i.status);
+  if (i.active_stages.length === 1) {
+    const a = i.active_stages[0];
+    const node = i.workflow_graph?.nodes.find((n) => n.id === a.node_id);
+    return humanize(node?.label || a.node_id);
+  }
+  return `${i.active_stages.length} Tasks parallel`;
 }
 
 export function InstancesPage() {
