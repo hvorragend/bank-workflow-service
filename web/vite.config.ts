@@ -17,7 +17,20 @@ export default defineConfig({
       "/auth":        { target: "http://localhost:8000", changeOrigin: true },
       "/instances":   { target: "http://localhost:8000", changeOrigin: true },
       "/definitions": { target: "http://localhost:8000", changeOrigin: true },
-      "/admin":       { target: "http://localhost:8000", changeOrigin: true },
+      "/admin": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        // SPA-Route /admin/... teilt sich den Pfad mit der Backend-API. Beim
+        // Browser-Refresh auf /admin/users wuerde sonst die JSON-API antworten
+        // ("Authentifizierung erforderlich.") statt der React-App. Navigationen
+        // (Sec-Fetch-Dest=document) deshalb nicht proxyn — Vite faellt dann auf
+        // index.html zurueck. Fetch/XHR sendet "empty" und geht weiter ans Backend.
+        bypass(req) {
+          if (req.headers["sec-fetch-dest"] === "document") {
+            return "/index.html";
+          }
+        },
+      },
       "/reporting":   { target: "http://localhost:8000", changeOrigin: true },
       "/health":      { target: "http://localhost:8000", changeOrigin: true },
       "/ready":       { target: "http://localhost:8000", changeOrigin: true },
