@@ -30,7 +30,7 @@ händisch mit Bezug zum Norm-Wortlaut.
 | Anforderung | Norm-Bezug | Abdeckende Tests | Status |
 |---|---|---|---|
 | IKT-Risikoidentifikation (Wesentlichkeitsanalyse) | Art. 6 | AT-8.2-Maske + `test_seeded_definitions_present` | ✓ |
-| IKT-Drittparteienrisiko in Beschlüssen kennzeichnen | Art. 28 ff. | Vorstandsbeschluss-Schema (`marisk_relevanz.dora_ikt_risiko` + Begründung) | ✓ Abdeckung im Schema |
+| IKT-Drittparteienrisiko in Beschlüssen kennzeichnen | Art. 28 ff. | Vorstandsbeschluss-Schema (`pflichtpruefungen.at_9_fremdbezug_it_dienstleistung` + Begründung gem. AT 9) | ✓ Abdeckung im Schema |
 | Vertragliche Anforderungen an IKT-Dienstleister | Art. 30 | wird in Beschlussvorlage abgefragt (siehe AT-9-Begründungstext) | ✓ Abdeckung im Schema |
 | Wiederanlauffähigkeit | Art. 11 | `test_db_restore_smoke`, `test_audit_log_recovery`, Runbooks | ✓ |
 | Resilience-Tests (operativ) | Art. 24 ff. | außerhalb dieser Anwendung — Pen-Tests + Restore-Übungen | (extern) |

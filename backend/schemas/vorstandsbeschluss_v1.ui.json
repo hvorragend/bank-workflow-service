@@ -3,93 +3,144 @@
   "elements": [
     {
       "type": "Group",
-      "label": "Beschluss",
+      "label": "Fachbereich — Stammdaten",
       "elements": [
-        { "type": "Control", "scope": "#/properties/beschluss/properties/titel" },
-        { "type": "Control", "scope": "#/properties/beschluss/properties/datum" },
-        { "type": "Control", "scope": "#/properties/beschluss/properties/vorlagengeber" },
-        { "type": "Control", "scope": "#/properties/beschluss/properties/kategorie" }
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/entscheidungstraeger" },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/verfasser" },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/weitere_beteiligte", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/betreff" },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/zeitliche_restriktion" },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/umsetzung_geplant_bis" },
+        { "type": "Control", "scope": "#/properties/fachbereich_kopf/properties/anlagen", "options": { "multi": true } }
       ]
     },
     {
       "type": "Group",
       "label": "Antrag",
       "elements": [
-        { "type": "Control", "scope": "#/properties/antrag/properties/sachverhalt", "options": { "multi": true } },
-        { "type": "Control", "scope": "#/properties/antrag/properties/begruendung", "options": { "multi": true } },
-        { "type": "Control", "scope": "#/properties/antrag/properties/alternativen", "options": { "multi": true } }
+        { "type": "Control", "scope": "#/properties/antrag/properties/antragstext", "options": { "multi": true } }
       ]
     },
     {
       "type": "Group",
-      "label": "Beschlussvorschlag",
+      "label": "Fachbereich — Sachverhaltsdarstellung",
       "elements": [
-        { "type": "Control", "scope": "#/properties/beschlussvorschlag/properties/wortlaut", "options": { "multi": true } }
+        { "type": "Control", "scope": "#/properties/sachverhalt/properties/ausgangssituation", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/sachverhalt/properties/sachverhalt_beschlussantrag", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/sachverhalt/properties/bewertung_veraenderungen", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/sachverhalt/properties/fazit_empfehlung", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/sachverhalt/properties/naechste_schritte", "options": { "multi": true } }
       ]
     },
     {
       "type": "Group",
-      "label": "MaRisk- und DORA-Relevanz",
+      "label": "Kommunikationsplanung",
       "elements": [
-        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_9_auslagerung" },
+        { "type": "Control", "scope": "#/properties/kommunikation/properties/erforderlich" },
         {
           "type": "Control",
-          "scope": "#/properties/marisk_relevanz/properties/at_9_begruendung",
+          "scope": "#/properties/kommunikation/properties/plan",
           "options": { "multi": true },
           "rule": {
             "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_9_auslagerung", "schema": { "const": true } }
+            "condition": { "scope": "#/properties/kommunikation/properties/erforderlich", "schema": { "const": true } }
           }
-        },
-        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_7_2_it_systeme" },
-        {
-          "type": "Control",
-          "scope": "#/properties/marisk_relevanz/properties/at_7_2_begruendung",
-          "options": { "multi": true },
-          "rule": {
-            "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_7_2_it_systeme", "schema": { "const": true } }
-          }
-        },
-        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/dora_ikt_risiko" },
-        {
-          "type": "Control",
-          "scope": "#/properties/marisk_relevanz/properties/dora_begruendung",
-          "options": { "multi": true },
-          "rule": {
-            "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/dora_ikt_risiko", "schema": { "const": true } }
-          }
-        },
-        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte" },
+        }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Fachbereich — Pflichtprüfungen vor Einreichung",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/npp_neue_produkte_maerkte" },
         {
           "type": "Notice",
           "level": "warning",
           "label": "Zusätzliches NPP-Verfahren erforderlich",
-          "text": "Bei NPP-Bejahung ist parallel der Neue-Produkte-Prozess nach MaRisk AT 8.1 anzustoßen. Dieser Workflow ersetzt den NPP nicht.",
+          "text": "Bei Bejahung ist parallel der Neue-Produkte-Prozess nach MaRisk AT 8.1 anzustoßen (siehe AAW „Neue Produkte / Neue Märkte\"). Dieser Workflow ersetzt den NPP nicht.",
           "rule": {
             "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte", "schema": { "const": true } }
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/npp_neue_produkte_maerkte", "schema": { "const": true } }
           }
         },
         {
           "type": "Control",
-          "scope": "#/properties/marisk_relevanz/properties/npp_begruendung",
+          "scope": "#/properties/pflichtpruefungen/properties/npp_begruendung",
           "options": { "multi": true },
           "rule": {
             "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/npp_neue_produkte", "schema": { "const": true } }
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/npp_neue_produkte_maerkte", "schema": { "const": true } }
           }
         },
-        { "type": "Control", "scope": "#/properties/marisk_relevanz/properties/at_8_2_wesentlich" },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/at_8_2_bewertung_erforderlich" },
         {
           "type": "Control",
-          "scope": "#/properties/marisk_relevanz/properties/at_8_2_referenz",
+          "scope": "#/properties/pflichtpruefungen/properties/at_8_2_referenz",
           "rule": {
             "effect": "SHOW",
-            "condition": { "scope": "#/properties/marisk_relevanz/properties/at_8_2_wesentlich", "schema": { "const": true } }
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/at_8_2_bewertung_erforderlich", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/at_9_auslagerung" },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/at_9_fremdbezug_dienstleistung" },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/at_9_fremdbezug_it_dienstleistung" },
+        {
+          "type": "Control",
+          "scope": "#/properties/pflichtpruefungen/properties/at_9_begruendung",
+          "options": { "multi": true },
+          "rule": {
+            "effect": "SHOW",
+            "condition": {
+              "scope": "#/properties/pflichtpruefungen",
+              "schema": {
+                "anyOf": [
+                  { "properties": { "at_9_auslagerung":                  { "const": true } }, "required": ["at_9_auslagerung"] },
+                  { "properties": { "at_9_fremdbezug_dienstleistung":    { "const": true } }, "required": ["at_9_fremdbezug_dienstleistung"] },
+                  { "properties": { "at_9_fremdbezug_it_dienstleistung": { "const": true } }, "required": ["at_9_fremdbezug_it_dienstleistung"] }
+                ]
+              }
+            }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/neues_it_system" },
+        {
+          "type": "Notice",
+          "level": "info",
+          "label": "Mitbestimmung Betriebsrat prüfen",
+          "text": "Bei neuem IT-System ist die Anlage zur Betriebsvereinbarung IKT an BL Personalmanagement zu senden (siehe AAW „Anwendungen\").",
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/neues_it_system", "schema": { "const": true } }
+          }
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/pflichtpruefungen/properties/betriebsrat_anlage_versendet",
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/neues_it_system", "schema": { "const": true } }
+          }
+        },
+        { "type": "Control", "scope": "#/properties/pflichtpruefungen/properties/it_projekt_richtlinie" },
+        {
+          "type": "Control",
+          "scope": "#/properties/pflichtpruefungen/properties/projekt_referenz",
+          "rule": {
+            "effect": "SHOW",
+            "condition": { "scope": "#/properties/pflichtpruefungen/properties/it_projekt_richtlinie", "schema": { "const": true } }
           }
         }
+      ]
+    },
+    {
+      "type": "Group",
+      "label": "Vorstand — Genehmigungsvermerk",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/vorstandsentscheidung/properties/genehmigung" },
+        { "type": "Control", "scope": "#/properties/vorstandsentscheidung/properties/datum" },
+        { "type": "Control", "scope": "#/properties/vorstandsentscheidung/properties/unterschrift" },
+        { "type": "Control", "scope": "#/properties/vorstandsentscheidung/properties/anmerkungen", "options": { "multi": true } },
+        { "type": "Control", "scope": "#/properties/vorstandsentscheidung/properties/wiedervorlage" }
       ]
     }
   ]

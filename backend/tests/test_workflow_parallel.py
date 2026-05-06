@@ -12,30 +12,38 @@ from .conftest import approve_all_active, approve_one, auth_header, login_as, re
 
 
 VORSTAND_DATEN = {
-    "beschluss": {
-        "titel": "Test-Beschluss fuer Parallel-Branches",
-        "datum": "2027-01-15",
-        "vorlagengeber": "Test",
-        "kategorie": "Sonstiges",
+    "fachbereich_kopf": {
+        "entscheidungstraeger": "Vorstand",
+        "verfasser": "Test",
+        "betreff": "Test-Beschluss fuer Parallel-Branches",
     },
     "antrag": {
-        "sachverhalt": (
+        "antragstext": (
             "Reiner Testfall fuer die Pruefung paralleler Branches. Wir wollen "
             "sehen, dass nach der Vorbereitung Compliance und Risikomanagement "
             "gleichzeitig aktiv werden und der Join erst dann den Vorstand "
             "aktiviert, wenn beide Branches genehmigt haben."
         ),
-        "begruendung": (
+    },
+    "sachverhalt": {
+        "ausgangssituation": "Reiner Testfall, kein realer Ist-Zustand.",
+        "sachverhalt_beschlussantrag": (
             "Ein Testfall, der die Korrektheit des Join-Wartens nachweist und "
             "verhindert, dass die Engine versehentlich nach dem ersten Branch "
             "weiter zum Vorstand schaltet."
         ),
+        "bewertung_veraenderungen": "Keine — reiner Test.",
+        "fazit_empfehlung": "Test laeuft erfolgreich durch.",
     },
-    "beschlussvorschlag": {"wortlaut": "Beschlossen wird: nichts. Reiner Test."},
-    "marisk_relevanz": {
-        "at_9_auslagerung": False, "at_7_2_it_systeme": False,
-        "dora_ikt_risiko": False, "npp_neue_produkte": False,
-        "at_8_2_wesentlich": False,
+    "kommunikation": {"erforderlich": False},
+    "pflichtpruefungen": {
+        "npp_neue_produkte_maerkte": False,
+        "at_8_2_bewertung_erforderlich": False,
+        "at_9_auslagerung": False,
+        "at_9_fremdbezug_dienstleistung": False,
+        "at_9_fremdbezug_it_dienstleistung": False,
+        "neues_it_system": False,
+        "it_projekt_richtlinie": False,
     },
 }
 
