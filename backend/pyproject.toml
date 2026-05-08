@@ -14,8 +14,7 @@ dependencies = [
   "pydantic-settings>=2.1.0",
   "jsonschema>=4.21.0",
   "python-statemachine>=2.1.2",
-  # Datenbank — Postgres ist Default in Produktion, SQLite bleibt fuer Tests/Quickstart erlaubt
-  "psycopg[binary]>=3.1.18",
+  # Datenbank: SQLite (in Python eingebaut) + Alembic fuer Migrationen
   "alembic>=1.13.0",
   # Auth (Phase 1 / Commit 2)
   "ldap3>=2.9.1",

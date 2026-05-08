@@ -4,11 +4,10 @@
 # Aufgaben:
 #   1. Falls deploy/.env fehlt, aus deploy/.env.example anlegen.
 #   2. Jede Zeile, deren Wert noch ein bekannter Platzhalter aus .env.example
-#      ist (replace-with-..., replace-me-...), durch einen frisch generierten
-#      Zufallswert im jeweils richtigen Format ersetzen:
+#      ist (replace-with-...), durch einen frisch generierten Zufallswert im
+#      jeweils richtigen Format ersetzen:
 #         JWT_SECRET            -> 64 Hex-Zeichen (openssl rand -hex 32)
 #         CONFIG_ENCRYPTION_KEY -> 44 url-safe Base64 (Fernet-Format)
-#         PG_PASSWORD           -> 32 url-safe Base64
 #   3. Werte, die NICHT auf einem Platzhalter stehen, bleiben unangetastet —
 #      das Script kann beliebig oft erneut ausgefuehrt werden, ohne bestehende
 #      Geheimnisse zu ueberschreiben.
@@ -52,24 +51,16 @@ gen_fernet() {
     openssl rand -base64 32 | tr '+/' '-_' | tr -d '\n'
 }
 
-# 32 url-safe Base64 fuer Postgres-Passwort. Keine Sonderzeichen, die in der
-# DSN gequotet werden muessten.
-gen_pg_pw() {
-    openssl rand -base64 24 | tr '+/' '-_' | tr -d '=\n'
-}
-
 # Bekannte Platzhalter aus .env.example -> erwartete Generator-Funktion.
 # Wer einen weiteren Platzhalter ergaenzt, muss ihn hier UND in
 # app/security/secrets.py:_PLACEHOLDER_VALUES registrieren.
 declare -A PLACEHOLDERS=(
     [JWT_SECRET]="replace-with-openssl-rand-hex-32"
     [CONFIG_ENCRYPTION_KEY]="replace-with-fernet-generate-key-output"
-    [PG_PASSWORD]="replace-me-in-production"
 )
 declare -A GENERATORS=(
     [JWT_SECRET]="gen_hex32"
     [CONFIG_ENCRYPTION_KEY]="gen_fernet"
-    [PG_PASSWORD]="gen_pg_pw"
 )
 
 replaced_any=0
@@ -101,5 +92,5 @@ if [[ $replaced_any -eq 0 ]]; then
 else
     echo
     echo "Fertig. Naechster Schritt:"
-    echo "  cd $SCRIPT_DIR && docker compose up -d --force-recreate backend"
+    echo "  ./deploy/dev-up.sh"
 fi

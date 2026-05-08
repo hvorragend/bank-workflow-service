@@ -31,17 +31,19 @@ RUN pip install --no-cache-dir /tmp/wheels/*.whl \
 # Anwendungs-Code, Schemas und Alembic-Setup
 COPY --chown=app:app app /app/app
 COPY --chown=app:app schemas /app/schemas
-COPY --chown=app:app legacy_demo /app/legacy_demo
 COPY --chown=app:app alembic /app/alembic
 COPY --chown=app:app alembic.ini /app/alembic.ini
+
+# SQLite-Datenverzeichnis als Mountpunkt fuer das persistente Volume.
+RUN mkdir -p /app/data && chown app:app /app/data
 
 USER app
 EXPOSE 8000
 
-# Liveness-Check: Root-Endpoint antwortet mit Status. /health kommt mit Auth in Commit 2.
+# Liveness-Check via /health — Prozess- und HTTP-Erreichbarkeit, ohne DB-Touch.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request,sys; \
-  sys.exit(0 if urllib.request.urlopen('http://localhost:8000/').status == 200 else 1)"
+  sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)"
 
 # Beim Container-Start: Migrationen anwenden, dann den FastAPI-Server starten.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

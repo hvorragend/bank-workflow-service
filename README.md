@@ -22,54 +22,101 @@ bank-workflow-service/
 │   ├── app/                    Code (Models, Routers, Workflow-Engine, Auth)
 │   ├── schemas/                Beispiel-JSON-Schemas (AT 8.2 v1/v2, Vorstandsbeschluss v1)
 │   ├── tests/                  Pytest-Tests
-│   ├── legacy_demo/            Vue-3-Single-File-Demo (read-only, /legacy)
 │   ├── alembic/                DB-Migrationen
 │   ├── pyproject.toml          Python-Dependencies
 │   └── Dockerfile
 ├── web/                        React-Frontend (Vite + TypeScript + Tailwind + shadcn-Stil)
 │   ├── src/                    Pages, Components, Auth, API-Client
 │   ├── package.json            JS-Dependencies (verwaltet via pnpm)
-│   ├── tailwind.config.ts      Editorial-Design-Tokens
 │   ├── nginx.conf              Reverse-Proxy zur Backend-API
 │   └── Dockerfile
-├── deploy/                     Container-Stack (Postgres + Backend + web)
-│   ├── docker-compose.dev.yml  nur Postgres + MailHog für lokale Entwicklung
+├── deploy/                     Container-Stack (Backend + Web + MailHog)
 │   ├── docker-compose.yml      Komplettstack
+│   ├── dev-up.sh               Stack hochfahren (inkl. Bootstrap der Secrets)
+│   ├── dev-down.sh             Stack stoppen
+│   ├── bootstrap-env.sh        Secrets generieren
+│   ├── backup/                 Cron-Skripte fuer SQLite-/Anhang-Backups
 │   └── README.md
 ├── config/                     Auth-Konfiguration (per .gitignore ausgeschlossen)
 └── .gitattributes              Cross-Platform-Line-Endings
 ```
 
+## Schnellstart
+
+Voraussetzungen: Docker + Docker-Compose-Plugin.
+
+```bash
+./deploy/dev-up.sh
+```
+
+Das Skript
+
+1. erzeugt beim ersten Lauf `deploy/.env` mit echten Zufalls-Secrets
+   (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`),
+2. baut und startet Backend, React-Frontend und MailHog,
+3. wartet auf den Backend-Healthcheck.
+
+Danach:
+
+- **Frontend (React)**: <http://localhost:8000>
+- **OpenAPI / Swagger**: <http://localhost:8000/docs>
+- **MailHog (Mail-UI)**: <http://localhost:8025>
+
+Stoppen mit `./deploy/dev-down.sh` (Volumes bleiben), oder
+`./deploy/dev-down.sh --volumes` für einen frischen Start.
+
+## Frontend-Entwicklung mit Hot-Reload
+
+Voraussetzung: Node 20 oder neuer + pnpm (via `corepack enable`).
+
+```bash
+./deploy/dev-up.sh        # Backend laeuft im Container auf :8000
+
+cd web
+pnpm install
+pnpm dev                   # Vite-Dev-Server auf :5173 mit HMR
+```
+
+Der Vite-Dev-Server proxiert API-Requests auf das laufende Backend.
+
+## Konfiguration: `.env` und Umgebungsvariablen
+
+Es gibt **kein** doppeltes Konfigurations-System:
+
+- `deploy/.env` wird ausschließlich von Docker Compose gelesen (natives Feature)
+  und an die Container weitergereicht. Dort sind es ganz normale Umgebungs­variablen.
+- `bootstrap-env.sh` generiert die Pflicht-Secrets idempotent — bestehende Werte
+  werden nie überschrieben.
+- Der Python-Code liest `os.getenv(...)`. Es gibt keine zusätzliche `.env`-Library.
+
+Pflicht-Variablen:
+
+| Variable | Bedeutung |
+|---|---|
+| `JWT_SECRET` | 32 Bytes Zufall (`openssl rand -hex 32`) — wird auto-generiert |
+| `CONFIG_ENCRYPTION_KEY` | Fernet-Schlüssel für SMTP-/LDAP-Service-Passwörter in der DB — wird auto-generiert |
+| `CONFIG_ENCRYPTION_KEY_OLD` | *Optional* — alter Schlüssel als Decrypt-Fallback während einer Rotation |
+
 ## Authentifizierung
 
 Alle Endpunkte unter `/instances` sowie schreibende `/definitions`-Endpunkte sind
-seit Commit 2 auth-pflichtig. Es gibt zwei Modi, gesteuert über `AUTH_MODE`:
+auth-pflichtig. Es gibt drei Modi (`AUTH_MODE`):
 
-- `local` — User kommen aus `config/users.json` (argon2id-Hashes)
-- `ldap` — Bind gegen LDAPS, Rollen aus Gruppen-DN-Mapping in `config/ldap.toml`
+- `local` — User aus der DB (argon2id-Hashes, gepflegt im Admin-Panel)
+- `ldap` — Bind gegen LDAPS, Rollen aus Gruppen-DN-Mapping
 - `both` — LDAP zuerst, Fallback auf Local nur wenn LDAP unerreichbar oder User dort
   unbekannt. **Nicht** bei „LDAP kennt User, Passwort falsch" — das wäre ein
   Credential-Stuffing-Risiko.
 
-Seit dem Admin-Panel werden **Auth-Modus, lokale User, LDAP-Konfiguration,
-SMTP, Notification-Templates, Rollen-Empfänger und SLA-Eskalation komplett
-in der DB gepflegt** und über das UI unter `/admin` konfiguriert. Lokale
-Dateien bleiben nur für echtes Bootstrap-/Notfall-Material.
+**Auth-Modus, lokale User, LDAP, SMTP, Notification-Templates, Rollen-Empfänger
+und SLA-Eskalation werden komplett in der DB gepflegt** und über `/admin`
+konfiguriert. Lokale Dateien dienen nur dem Bootstrap und der Notfall­wiederherstellung.
 
-**Pflicht-Umgebungsvariablen:**
-
-| Variable | Bedeutung |
-|---|---|
-| `JWT_SECRET` | Mindestens 32 Bytes Zufallswert, z. B. `openssl rand -hex 32` |
-| `CONFIG_ENCRYPTION_KEY` | Fernet-Schlüssel zum Verschlüsseln von SMTP- und LDAP-Service-Passwörtern in der DB. Generieren: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` |
-| `DATABASE_URL` | DB-Verbindung (SQLite oder Postgres) |
-| `CONFIG_ENCRYPTION_KEY_OLD` | *Optional* — alter Schlüssel als Decrypt-Fallback während einer Rotation. |
-
-**Notfall-Admin (Break-Glass) einrichten:**
+### Notfall-Admin (Break-Glass)
 
 ```bash
 cp config/emergency_users.example.json config/emergency_users.json
-# Hash für das Notfall-Passwort erzeugen:
+# Hash fuer das Notfall-Passwort erzeugen:
 python -m app.auth.hash_password
 # Den Hash in config/emergency_users.json eintragen.
 ```
@@ -78,124 +125,32 @@ Der Notfall-User wird **nur** geladen, wenn (a) die DB unerreichbar ist
 oder (b) kein aktiver Admin in der `users`-Tabelle existiert. Jeder
 Login über diesen Pfad erscheint im Audit-Log als `auth.login.emergency`.
 
-`config/emergency_users.json` ist über `.gitignore` ausgeschlossen.
 Brownfield-Upgrades importieren bestehende `config/users.json` und
-`config/role_emails.toml` automatisch in die DB; danach werden die
+`config/role_emails.toml` einmalig in die DB; danach werden die
 Dateien nicht mehr gelesen und können entfernt werden.
-
-## Quickstart
-
-Drei Wege, je nach Vorliebe.
-
-### A — Schnell ausprobieren (SQLite, ohne Docker)
-
-Voraussetzung: Python 3.11 oder neuer.
-
-**Linux/macOS:**
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-export JWT_SECRET=$(openssl rand -hex 32)
-export CONFIG_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
-uvicorn app.main:app --reload
-```
-
-**Windows (cmd):**
-
-```cmd
-cd backend
-python -m venv .venv
-.venv\Scripts\activate.bat
-pip install -e ".[dev]"
-set JWT_SECRET=replace-with-openssl-rand-hex-32
-set CONFIG_ENCRYPTION_KEY=replace-with-fernet-generate-key-output
-uvicorn app.main:app --reload
-```
-
-**Windows (PowerShell):**
-
-```powershell
-cd backend
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-$env:JWT_SECRET = "replace-with-openssl-rand-hex-32"
-uvicorn app.main:app --reload
-```
-
-Dann: <http://localhost:8000/legacy> für die Vue-Demo, <http://localhost:8000/docs> für Swagger.
-
-### B — Mit Postgres lokal (Docker für die DB, Backend nativ)
-
-```bash
-docker compose -f deploy/docker-compose.dev.yml up -d
-
-# Linux/macOS:
-export DATABASE_URL=postgresql+psycopg://bws:bws_local_dev@localhost:5432/bws
-
-# Windows (PowerShell):
-$env:DATABASE_URL = "postgresql+psycopg://bws:bws_local_dev@localhost:5432/bws"
-
-cd backend
-alembic upgrade head      # einmalig, danach läuft's automatisch beim Start
-uvicorn app.main:app --reload
-```
-
-### C — Komplettstack im Container
-
-```bash
-cp deploy/.env.example deploy/.env       # Passwort + JWT_SECRET eintragen
-docker compose -f deploy/docker-compose.yml up -d --build
-```
-
-Dann:
-- **React-Frontend**: <http://localhost:8080>
-- **Backend-API**: intern `http://backend:8000`, von außen über den Nginx-Proxy
-- **OpenAPI-Docs**: <http://localhost:8080/docs>
-- **Vue-Legacy-Demo**: <http://localhost:8080/legacy> (Lese-Modus, kein Login möglich)
-
-### D — Frontend-Entwicklung (Vite-Dev-Server gegen lokales Backend)
-
-Voraussetzung: Node 20 oder neuer + pnpm (via `corepack enable`).
-
-```bash
-# Backend-Terminal
-cd backend
-export JWT_SECRET=$(openssl rand -hex 32)
-uvicorn app.main:app --reload          # Port 8000
-
-# Frontend-Terminal
-cd web
-pnpm install
-pnpm dev                                # Port 5173, proxy zu Backend
-```
-
-Dann: <http://localhost:5173>. Vite-HMR läuft, Änderungen am React-Code erscheinen sofort.
 
 ## Tests
 
 ```bash
-# Backend (19 Tests: Versionierung + Auth)
+# Backend (pytest, SQLite-Tempdatei pro Lauf)
 cd backend
+pip install -e ".[dev]"
 pytest
 
-# Frontend (10 Tests: Schema-Renderer-Helfer)
+# Frontend (Vitest)
 cd web
 pnpm test
 ```
 
-## Datenbank-Migrationen (Alembic)
+## Datenbank
 
-Schema-Änderungen werden über Alembic versioniert, **nicht** durch `create_all`-Aufrufe
-in Produktionscode. Beim Container-Start wird automatisch `alembic upgrade head`
-ausgeführt.
+SQLite, Datei unter `/app/data/bank_workflow.db` im Backend-Container
+(persistiert via Docker-Volume `bws-data`). Schema-Änderungen werden über
+Alembic versioniert; beim Container-Start läuft automatisch `alembic upgrade head`.
 
 ```bash
 # Neue Revision aus Modelländerungen erzeugen
-alembic revision --autogenerate -m "kurze beschreibung"
+cd backend && alembic revision --autogenerate -m "kurze beschreibung"
 
 # Migrationen anwenden
 alembic upgrade head
@@ -220,11 +175,3 @@ Beim ersten Start (leere DB) werden angelegt:
 
 Vorgesehen für Single-Host-Deployment auf einer Linux-VM unter Proxmox. Details siehe
 [`deploy/README.md`](deploy/README.md).
-
-## Roadmap
-
-Tracking der grossen Schritte über GitHub-Issues:
-
-- **Phase 1 — Fundament** (#3): Monorepo, Postgres+Alembic, LDAP-Auth, React-Frontend
-- **Phase 2 — Sichtbare Features** (#4): „Aktuelles"-Dashboard, Archiv, Workflow-Upload, Anhänge
-- **Phase 3 — Operations** (#5): Notifications, SLA-Eskalation, Reporting, MaRisk-Testdokumentation
