@@ -1,62 +1,62 @@
 # Deployment-Stack
 
-Zwei Compose-Files, beide cross-platform (Windows mit Docker Desktop und Linux nativ).
+Ein einziges Compose-File. Backend (SQLite) + Web (React/Nginx) + MailHog
+(Mail-Catcher fuer Dev und Mail-Tests).
 
-## `docker-compose.dev.yml` — Entwicklungs-Hilfsdienste
-
-Postgres + MailHog. Backend laeuft daneben nativ. Empfohlen fuer den taeglichen
-Entwicklungs-Loop.
+## Schnellstart
 
 ```bash
-docker compose -f deploy/docker-compose.dev.yml up -d
-# Postgres:  localhost:5432  (User bws, Passwort bws_local_dev, DB bws)
-# MailHog:   http://localhost:8025
+./deploy/dev-up.sh
 ```
 
-## `docker-compose.yml` — Komplettstack (Postgres + Backend)
+Das Skript erzeugt beim ersten Lauf `deploy/.env` mit echten Secrets,
+baut die Container und wartet auf den Backend-Healthcheck.
 
-Dient zum Testen des deploybaren Container-Aufbaus. Spaeter (Commit 3) kommen
-ein `web`-Service und Traefik als Reverse-Proxy dazu.
+Endpunkte nach dem Start:
 
-```bash
-# Einmalig: deploy/.env anlegen und alle Pflicht-Geheimnisse generieren.
-# Idempotent — bei wiederholtem Aufruf werden bereits gesetzte Werte nicht
-# ueberschrieben.
-./deploy/bootstrap-env.sh
+- React-Frontend:   <http://localhost:8000>
+- OpenAPI / Swagger: <http://localhost:8000/docs>
+- MailHog (Mail-UI): <http://localhost:8025>
 
-docker compose -f deploy/docker-compose.yml up -d --build
-# Anwendung: http://localhost:8000
-```
+Stoppen mit `./deploy/dev-down.sh` (Volumes bleiben), oder
+`./deploy/dev-down.sh --volumes` für einen frischen Start.
 
-### Was `bootstrap-env.sh` macht
+## Was `bootstrap-env.sh` macht
 
-`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY` und `PG_PASSWORD` haben unterschiedliche
-Formate (64-Hex vs. 44-Base64-Fernet vs. 32-Base64). Wer einen Wert im
-falschen Format setzt — ein klassischer Fehler ist `openssl rand -hex 32` fuer
-den Fernet-Key — landet in einem Crash-Loop, in dem der Backend-Container
-beim Start abbricht und der Reverse-Proxy 502 liefert. Das Script:
+`JWT_SECRET` (64 Hex) und `CONFIG_ENCRYPTION_KEY` (44 Base64-Fernet) haben
+unterschiedliche Formate. Wer einen Wert im falschen Format setzt — ein
+klassischer Fehler ist `openssl rand -hex 32` für den Fernet-Key — landet
+in einem Crash-Loop. Das Skript:
 
 1. Legt `deploy/.env` aus `.env.example` an, falls noch nicht vorhanden.
-2. Erkennt jeden noch unveraenderten Platzhalter (`replace-with-...`,
-   `replace-me-...`) und ersetzt ihn durch einen frisch erzeugten
-   Zufallswert im jeweils richtigen Format.
-3. Faesst bestehende Werte nicht an, kann also bei Updates wiederholt
-   ausgefuehrt werden.
+2. Erkennt jeden noch unveränderten Platzhalter (`replace-with-...`) und
+   ersetzt ihn durch einen frisch erzeugten Zufallswert im richtigen Format.
+3. Fasst bestehende Werte nicht an — kann beliebig oft ausgeführt werden.
 
-Voraussetzung: `bash`, `openssl` (auf jedem Linux-Host vorhanden). Kein
-Python noetig.
+Voraussetzung: `bash`, `openssl`. Kein Python notwendig.
+
+## Manuelles Hochfahren ohne Wrapper-Skript
+
+```bash
+./deploy/bootstrap-env.sh
+docker compose -f deploy/docker-compose.yml up -d --build
+```
 
 ## Production-Deployment auf Proxmox
 
 Vorgesehen ist ein Single-Host-Setup auf einer Linux-VM unter Proxmox:
 
 1. VM bereitstellen (Ubuntu 24.04 LTS empfohlen), Docker Engine installieren.
-2. Repo pullen, `deploy/.env` mit produktiven Werten anlegen.
-3. `docker compose -f deploy/docker-compose.yml pull && docker compose ... up -d`
-4. Reverse-Proxy / TLS folgt mit Commit 3 (Traefik).
+2. Repo pullen, `./deploy/bootstrap-env.sh` für Secret-Generierung ausführen
+   (oder `deploy/.env` manuell mit produktiven Werten füllen).
+3. `docker compose -f deploy/docker-compose.yml up -d --build`
+4. Reverse-Proxy / TLS davorschalten (z. B. Traefik oder nginx auf dem Host).
 
-Backups (relevant fuer MaRisk AT 7.2 / DORA Art. 11):
+Backups (relevant für MaRisk AT 7.2 / DORA Art. 11):
 
-- `pg_dump`-Cron mit Volume-Mount auf das Host-System
-- Proxmox Backup Server fuer die VM-Ebene als zweites Standbein
-- Restore-Tests gehoeren in die Notfalldokumentation (Phase 3)
+- `backup/sqlite_backup.sh` — SQLite-Online-Snapshot via `sqlite3 .backup`
+  (konsistent auch bei laufenden Schreibzugriffen)
+- `backup/storage_backup.sh` — `tar.gz` des Anhang-Volumes
+- `backup/cron.example` — Beispiel-Crontab mit 30-Tage-Aufbewahrung
+- Proxmox Backup Server für die VM-Ebene als zweites Standbein
+- Restore-Tests gehören in die Notfalldokumentation

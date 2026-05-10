@@ -3,8 +3,6 @@
 Lokal starten:  uvicorn app.main:app --reload
 Anlaufpunkte:
   http://localhost:8000/docs    — OpenAPI Swagger UI
-  http://localhost:8000/legacy  — Single-File-HTML-Demo (Vue 3 via CDN)
-  http://localhost:8000/demo    — Alias auf /legacy
 
 Beim ersten Start werden Tabellen angelegt und Beispiel-Definitionen
 zusammen mit drei Demo-Antraegen geseedet, damit die Demo aussagekraeftig
@@ -20,7 +18,6 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select, text
 
@@ -32,7 +29,6 @@ from .reporting import router as reporting_router
 from .routers import attachments, definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
-LEGACY_DEMO_DIR = Path(__file__).resolve().parent.parent / "legacy_demo"
 
 
 # ---------- Seed-Hilfen ----------
@@ -394,7 +390,6 @@ def root() -> dict:
     return {
         "name": "Bank Workflow Service",
         "docs": "/docs",
-        "legacy_demo": "/legacy",
         "status": "ok",
     }
 
@@ -416,19 +411,3 @@ def ready() -> dict:
         from fastapi import HTTPException, status as st
         raise HTTPException(status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}")
     return {"status": "ready"}
-
-
-@app.get("/legacy", include_in_schema=False)
-def legacy_demo() -> FileResponse:
-    """Liefert die Single-File-Vue-Demo aus (kein Build-Schritt erforderlich).
-
-    Wird mit dem React-Frontend in Phase 1 / Commit 3 weiter parallel betrieben,
-    damit das alte UI verfuegbar bleibt, bis das neue stabil ist.
-    """
-    return FileResponse(LEGACY_DEMO_DIR / "index.html")
-
-
-@app.get("/demo", include_in_schema=False)
-def demo_alias() -> FileResponse:
-    """Alias fuer /legacy — historische URL aus dem Skelett."""
-    return FileResponse(LEGACY_DEMO_DIR / "index.html")
