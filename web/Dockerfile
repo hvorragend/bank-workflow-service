@@ -6,10 +6,18 @@
 FROM node:22-alpine AS builder
 WORKDIR /build
 
-# pnpm via corepack (kommt mit Node 22 mit).
-RUN corepack enable && corepack prepare pnpm@latest-10 --activate
+# pnpm via corepack. Die aktivierte Version MUSS zum "packageManager"-Feld in
+# package.json (pnpm@11.9.0) passen — sonst versucht corepack beim ersten
+# pnpm-Aufruf, die gepinnte Version nachzuladen, und bricht im nicht-interaktiven
+# Build am Download-Prompt ab (exit 1). COREPACK_ENABLE_DOWNLOAD_PROMPT=0 macht
+# einen etwaigen Download zusaetzlich non-interactive.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 
-COPY package.json pnpm-lock.yaml* ./
+# pnpm-workspace.yaml MUSS mitkopiert werden: dort steht onlyBuiltDependencies
+# (esbuild), sonst wird esbuilds Platform-Binary beim Install nicht gebaut und
+# der spaetere `pnpm build` (vite) schlaegt fehl.
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile=false --prefer-offline
 
 COPY tsconfig.json tsconfig.node.json vite.config.ts tailwind.config.ts postcss.config.js index.html ./
