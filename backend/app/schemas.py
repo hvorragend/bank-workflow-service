@@ -58,6 +58,7 @@ class ApprovalOut(BaseModel):
 
     id: str
     stage: str
+    lauf: int
     genehmiger: str
     rolle: str
     entscheidung: str
@@ -84,6 +85,7 @@ class FormInstanceOut(BaseModel):
     daten: dict[str, Any]
     antragsteller: str
     status: str
+    lauf: int
     erstellt_am: datetime
     abgeschlossen_am: datetime | None
     approvals: list[ApprovalOut]

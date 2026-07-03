@@ -557,6 +557,7 @@ def _to_instance_with_schema(instance: models.FormInstance) -> dict:
         "daten": instance.daten,
         "antragsteller": instance.antragsteller,
         "status": instance.status,
+        "lauf": instance.lauf,
         "erstellt_am": instance.erstellt_am,
         "abgeschlossen_am": instance.abgeschlossen_am,
         "approvals": instance.approvals,
