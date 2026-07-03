@@ -53,9 +53,25 @@ def test_emails_for_role_uses_db_users():
 
 
 def test_submit_triggers_stage_pending_mail(client, admin_auth, enable_notifications, captured_mails):
-    drafts = client.get("/instances?status=entwurf", headers=admin_auth).json()
-    assert drafts, "Erwartet mind. einen Entwurf aus dem Seed."
-    iid = drafts[0]["id"]
+    # Eigenen Entwurf anlegen (submit ist jetzt nur durch den Antragsteller
+    # erlaubt) statt einen fremden Seed-Entwurf zu verwenden.
+    defs = client.get("/definitions").json()
+    target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
+    daten = {
+        "antragsteller": {"name": "Admin", "abteilung": "IT", "datum": "2026-05-05"},
+        "vorhaben": {"titel": "Stage-Pending-Smoke", "kategorie": "IT-System"},
+        "wesentlichkeitskriterien": {
+            "ertragsrelevanz": "mittel", "risikorelevanz": "mittel",
+            "aufsichtsrechtlicheRelevanz": True, "doraRelevanz": True,
+        },
+        "ergebnis": {
+            "wesentlich": True,
+            "begruendung": "Hinreichend langer Begruendungstext, der das Mindestlimit ueberschreitet.",
+        },
+    }
+    iid = client.post(
+        "/instances", json={"form_definition_id": target["id"], "daten": daten}, headers=admin_auth
+    ).json()["id"]
 
     r = client.post(f"/instances/{iid}/submit", headers=admin_auth)
     assert r.status_code == 200

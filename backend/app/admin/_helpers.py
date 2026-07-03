@@ -1,16 +1,27 @@
 """Geteilte Helfer fuer alle Admin-Sub-Router."""
 from __future__ import annotations
 
+import os
+
 from fastapi import Request
 
 from .. import audit, models
 from ..auth.schemas import AuthenticatedUser
 
+# X-Forwarded-For ist client-setzbar und darf nur dann vertraut werden, wenn ein
+# vorgeschalteter Reverse-Proxy den Header kontrolliert. Bevorzugt wird uvicorn
+# mit --proxy-headers gestartet — dann steht die echte Client-IP bereits in
+# request.client.host und wir muessen XFF gar nicht parsen. Nur wenn explizit
+# TRUST_PROXY_HEADERS=1 gesetzt ist (und uvicorn KEIN --proxy-headers macht),
+# werten wir XFF selbst aus. Sonst wuerde ein Angreifer die Audit-Spur faelschen.
+_TRUST_XFF = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in {"1", "true", "yes"}
+
 
 def client_ip(request: Request) -> str | None:
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    if _TRUST_XFF:
+        fwd = request.headers.get("x-forwarded-for")
+        if fwd:
+            return fwd.split(",")[0].strip()
     return request.client.host if request.client else None
 
 

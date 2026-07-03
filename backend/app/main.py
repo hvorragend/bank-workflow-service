@@ -11,6 +11,7 @@ ist (statt mit leerer Liste zu starten).
 from __future__ import annotations
 
 import json
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -313,11 +314,19 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
 
 
 def _seed(db) -> None:
-    """Initial-Seed: Definitionen + drei Beispiel-Antraege, falls die DB leer ist."""
+    """Initial-Seed, falls die DB leer ist.
+
+    Die Schema-Definitionen (Masken-Katalog) werden immer angelegt — ohne sie
+    ist die App nicht bedienbar. Die drei fiktiven Demo-Antraege sind reine
+    Entwicklungs-/Demo-Daten und werden nur bei ausdruecklichem Opt-in
+    (SEED_DEMO_DATA=1) geseedet — in einem revisionsrelevanten Prod-System
+    haben erfundene, „genehmigte" Antraege nichts zu suchen.
+    """
     if db.scalar(select(models.FormDefinition).limit(1)):
         return
     defs = _seed_definitions(db)
-    _seed_demo_instances(db, defs)
+    if os.getenv("SEED_DEMO_DATA", "").strip().lower() in {"1", "true", "yes"}:
+        _seed_demo_instances(db, defs)
     db.commit()
 
 
@@ -363,10 +372,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Permissive CORS fuer die lokale Demo. Produktiv: auf Frontend-Origin einschraenken.
+# CORS: per CORS_ALLOW_ORIGINS (komma-separiert) konfigurierbar. Default ist die
+# lokale Frontend-Origin — NICHT mehr Wildcard, damit Produktion nicht
+# zwangslaeufig offen laeuft. Wildcard nur, wenn explizit CORS_ALLOW_ORIGINS=*
+# gesetzt wird (bewusste Entscheidung des Operators).
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = ["http://localhost:8000", "http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

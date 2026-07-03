@@ -18,12 +18,29 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import audit, models
-from ..auth.dependencies import get_current_user
+from ..auth.dependencies import get_current_user, require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 from ..storage import get_storage
+from .instances import _assert_can_view
 
 router = APIRouter(prefix="/instances", tags=["attachments"])
+
+
+def _safe_content_disposition(filename: str) -> str:
+    """Baut einen Content-Disposition-Header ohne Header-Injection.
+
+    Der Upload-Dateiname ist nutzerkontrolliert; Anfuehrungszeichen/CRLF/
+    Steuerzeichen wuerden sonst den Header manipulieren (F-023). Wir liefern
+    einen bereinigten ASCII-Fallback plus RFC-5987-`filename*` fuer Unicode.
+    """
+    from urllib.parse import quote
+
+    ascii_fallback = "".join(
+        c for c in filename if 32 <= ord(c) < 127 and c not in '"\\'
+    ) or "download"
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
 
 
 MAX_BYTES = int(os.getenv("ATTACHMENT_MAX_BYTES", str(25 * 1024 * 1024)))  # 25 MB Default
@@ -49,11 +66,21 @@ async def upload_attachment(
     instance_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(require_permission("instances.read")),
 ) -> dict:
     instance = db.get(models.FormInstance, instance_id)
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
+    _assert_can_view(user, instance)
+    # Anhaenge nur waehrend Erfassung/Pruefung — an abgeschlossene Antraege
+    # (genehmigt/abgelehnt) darf nichts mehr angehaengt werden, sonst bricht die
+    # Unveraenderlichkeit der Audit-Spur (F-020).
+    if instance.status not in ("entwurf", "in_pruefung"):
+        raise HTTPException(
+            409,
+            f"An einen Antrag im Status '{instance.status}' koennen keine Anhaenge "
+            "mehr hochgeladen werden.",
+        )
 
     # Inhalt einlesen + groesse pruefen + sha256 berechnen.
     data = await file.read()
@@ -106,11 +133,12 @@ async def upload_attachment(
 def list_attachments(
     instance_id: str,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(require_permission("instances.read")),
 ) -> list[dict]:
     instance = db.get(models.FormInstance, instance_id)
     if not instance:
         raise HTTPException(404, "Antrag nicht gefunden.")
+    _assert_can_view(user, instance)
     rows = list(
         db.scalars(
             select(models.Attachment)
@@ -126,8 +154,12 @@ def download_attachment(
     instance_id: str,
     attachment_id: str,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(require_permission("instances.read")),
 ):
+    instance = db.get(models.FormInstance, instance_id)
+    if not instance:
+        raise HTTPException(404, "Antrag nicht gefunden.")
+    _assert_can_view(user, instance)
     att = _get_attachment(db, instance_id, attachment_id)
     storage = get_storage()
     if not storage.exists(att.storage_key):
@@ -135,7 +167,11 @@ def download_attachment(
     return StreamingResponse(
         storage.stream(att.storage_key),
         media_type=att.content_type,
-        headers={"Content-Disposition": f'attachment; filename="{att.filename}"'},
+        headers={
+            "Content-Disposition": _safe_content_disposition(att.filename),
+            # Verhindert MIME-Sniffing des Browsers auf hochgeladenen Inhalt.
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -144,10 +180,13 @@ def delete_attachment(
     instance_id: str,
     attachment_id: str,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(require_permission("instances.read")),
 ):
-    att = _get_attachment(db, instance_id, attachment_id)
     instance = db.get(models.FormInstance, instance_id)
+    if not instance:
+        raise HTTPException(404, "Antrag nicht gefunden.")
+    _assert_can_view(user, instance)
+    att = _get_attachment(db, instance_id, attachment_id)
     # Nur im Entwurf darf geloescht werden — sobald der Antrag in Pruefung
     # geht, sind Anhaenge unveraendlicher Bestandteil der Audit-Spur.
     if instance.status != "entwurf":
@@ -156,15 +195,15 @@ def delete_attachment(
             f"Anhaenge koennen nur im Entwurfsstatus geloescht werden (aktuell: {instance.status}).",
         )
 
-    # Sind andere Attachments mit demselben Hash da? Dann nicht aus Storage loeschen.
+    # Sind andere Attachments mit demselben Hash da? Dann Blob behalten.
     other = db.scalar(
         select(models.Attachment.id).where(
             models.Attachment.sha256 == att.sha256,
             models.Attachment.id != att.id,
         )
     )
-    if other is None:
-        get_storage().delete(att.storage_key)
+    storage_key = att.storage_key
+    delete_blob = other is None
 
     db.delete(att)
     audit.write_event(
@@ -177,7 +216,13 @@ def delete_attachment(
         payload={"filename": att.filename, "sha256": att.sha256},
         commit=False,
     )
+    # Erst die DB-Aenderung festschreiben, DANN den Blob entfernen (F-020): faellt
+    # der Commit aus, bleibt die Datei erhalten statt einer DB, die auf ein
+    # geloeschtes Blob zeigt. Ein verwaistes Blob nach erfolgreichem Commit ist
+    # dagegen harmlos (dedupliziertes, content-adressiertes Storage).
     db.commit()
+    if delete_blob:
+        get_storage().delete(storage_key)
 
 
 def _get_attachment(db: Session, instance_id: str, attachment_id: str) -> models.Attachment:

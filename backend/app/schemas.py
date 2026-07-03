@@ -49,6 +49,11 @@ class FormInstanceCreate(BaseModel):
     antragsteller: str = ""
 
 
+class FormInstanceUpdate(BaseModel):
+    """Aenderung der Antragsdaten eines Entwurfs (PATCH /instances/{id})."""
+    daten: dict[str, Any]
+
+
 class ApprovalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

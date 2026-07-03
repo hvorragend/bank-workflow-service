@@ -32,6 +32,14 @@ def test_db_restore_smoke(client, admin_auth, tmp_path: Path):
     src = Path(os.environ["DATABASE_URL"].replace("sqlite:///", ""))
     if not src.exists():
         pytest.skip("Test laeuft nur mit SQLite-DB.")
+
+    # Im WAL-Modus liegen frisch committete Daten zunaechst im -wal-File, nicht
+    # in der Haupt-.db. Ein naiver `cp` der .db-Datei ist daher NICHT konsistent —
+    # genau deshalb nutzt das Backup-Skript `sqlite3 .backup`. Wir stellen das
+    # korrekte Verfahren nach: vor dem Kopieren einen WAL-Checkpoint erzwingen.
+    from sqlalchemy import text
+    with dbmod.engine.connect() as conn:
+        conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
     target = tmp_path / "restored.db"
     shutil.copy(src, target)
 

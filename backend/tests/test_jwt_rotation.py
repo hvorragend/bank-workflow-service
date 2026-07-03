@@ -17,6 +17,10 @@ def _build_token(secret: str, *, sub: str = "admin", roles: list[str] | None = N
         "name": f"Test {sub}",
         "email": f"{sub}@test.local",
         "roles": roles or ["Admin"],
+        # /instances verlangt jetzt die Permission instances.read — der
+        # Rotations-Test nutzt den Endpunkt nur als beliebige Auth-geschuetzte
+        # Route, deshalb den noetigen Permission-Claim mitgeben.
+        "permissions": ["instances.read"],
         "auth_source": "local",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=10)).timestamp()),

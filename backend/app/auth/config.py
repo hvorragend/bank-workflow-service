@@ -32,6 +32,38 @@ class AuthSettings(BaseSettings):
     refresh_cookie_secure: bool = False  # produktiv: True (nur ueber HTTPS)
 
 
+# Platzhalter aus deploy/.env.example. Wer die Beispieldatei kopiert und nur
+# einen Teil ersetzt, wuerde sonst mit dem oeffentlich bekannten Signatur-
+# schluessel starten — ein vollstaendiger Auth-Bypass (jeder kann Admin-Tokens
+# selbst signieren). Analog zur Platzhalter-Erkennung in security/secrets.py.
+_PLACEHOLDER_SECRETS = frozenset({
+    "replace-with-openssl-rand-hex-32",
+    "replace-with-fernet-generate-key-output",
+    "replace-me",
+    "replace-me-in-production",
+    "changeme",
+    "secret",
+})
+
+# HS256 mit einem Schluessel < 32 Bytes ist gegen Brute-Force schwach.
+_MIN_SECRET_LEN = 32
+
+
+def _validate_secret(value: str) -> None:
+    v = value.strip()
+    if v in _PLACEHOLDER_SECRETS:
+        raise RuntimeError(
+            f"JWT_SECRET steht noch auf dem Platzhalter '{v}' aus "
+            "deploy/.env.example. Erzeuge einen echten Schluessel mit "
+            "JWT_SECRET=$(openssl rand -hex 32) und setze ihn in der Umgebung."
+        )
+    if len(v) < _MIN_SECRET_LEN:
+        raise RuntimeError(
+            f"JWT_SECRET ist mit {len(v)} Zeichen zu kurz (mind. "
+            f"{_MIN_SECRET_LEN}). Erzeuge einen mit: openssl rand -hex 32."
+        )
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> AuthSettings:
     s = AuthSettings()
@@ -41,6 +73,9 @@ def get_settings() -> AuthSettings:
             "Setze die Umgebungsvariable, z. B. mit "
             "JWT_SECRET=$(openssl rand -hex 32) — siehe README."
         )
+    # Jeden konfigurierten Schluessel pruefen (Sign-Key + Rotations-Keys).
+    for key in jwt_secret_keys(s):
+        _validate_secret(key)
     return s
 
 
