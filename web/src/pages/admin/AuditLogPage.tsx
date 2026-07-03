@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 
-import { listAudit, type AuditEvent } from "@/api/endpoints";
+import { exportAuditCsv, listAudit, type AuditEvent } from "@/api/endpoints";
+import { useToast } from "@/components/Toaster";
 import { formatDate } from "@/lib/utils";
 
 const KATEGORIEN = [
@@ -13,9 +15,32 @@ const KATEGORIEN = [
 ];
 
 export function AuditLogPage() {
+  const { show } = useToast();
   const [kategorie, setKategorie] = useState("");
   const [akteur, setAkteur] = useState("");
   const [debouncedAkteur, setDebouncedAkteur] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const blob = await exportAuditCsv({
+        kategorie: kategorie || undefined,
+        akteur: debouncedAkteur || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      show("CSV-Export gestartet.");
+    } catch (e) {
+      show((e as Error).message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedAkteur(akteur), 300);
@@ -59,8 +84,13 @@ export function AuditLogPage() {
             onChange={(e) => setAkteur(e.target.value)}
           />
         </div>
-        <div className="text-left sm:text-right text-[12px] text-quiet">
-          {isLoading ? "Lade …" : `${data?.length ?? 0} Einträge`}
+        <div className="flex items-center justify-between sm:justify-end gap-3">
+          <span className="text-[12px] text-quiet">
+            {isLoading ? "Lade …" : `${data?.length ?? 0} Einträge`}
+          </span>
+          <button type="button" className="btn" onClick={handleExport} disabled={exporting}>
+            <Download size={14} /> {exporting ? "Exportiere …" : "CSV"}
+          </button>
         </div>
       </div>
 

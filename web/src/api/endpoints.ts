@@ -233,6 +233,17 @@ export function listAudit(params: ListAuditParams = {}): Promise<AuditEvent[]> {
   return api<AuditEvent[]>(`/api/admin/audit${qs ? "?" + qs : ""}`);
 }
 
+/** N-003: Audit-Log als CSV fuer die Revision (ohne limit-Abschneidung). */
+export function exportAuditCsv(params: ListAuditParams = {}): Promise<Blob> {
+  const sp = new URLSearchParams();
+  if (params.kategorie) sp.set("kategorie", params.kategorie);
+  if (params.akteur)    sp.set("akteur", params.akteur);
+  if (params.seit)      sp.set("seit", params.seit);
+  if (params.sort)      sp.set("sort", params.sort);
+  sp.set("format", "csv");
+  return apiBlob(`/api/admin/audit?${sp.toString()}`);
+}
+
 // --- Datei-Anhaenge (Phase 2 / Commit 6) ---
 
 export interface Attachment {

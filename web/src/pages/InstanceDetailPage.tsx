@@ -319,6 +319,13 @@ export function InstanceDetailPage() {
           onDecide={(entscheidung) => {
             const target = effectiveSelected?.node_id;
             if (!target) return;
+            // N-004: Ablehnung/Zurueckweisung erfordern eine Begruendung — hier
+            // clientseitig pruefen, damit der Nutzer sofort Feedback bekommt
+            // (statt erst einen 422 vom Backend).
+            if ((entscheidung === "rejected" || entscheidung === "returned") && !kommentar.trim()) {
+              show("Bitte eine Begründung im Kommentarfeld angeben.", "error");
+              return;
+            }
             // U-003: finale Entscheidungen (genehmigen/ablehnen) rueckfragen.
             if (entscheidung === "approved" && !confirm("Antrag endgültig genehmigen?")) return;
             if (entscheidung === "rejected" && !confirm("Antrag endgültig ablehnen?")) return;
@@ -431,7 +438,9 @@ function ApprovalBox({
       )}
       <div className="mt-5 grid grid-cols-1 gap-4">
         <div>
-          <label className="label-mono mb-2 block">Kommentar (optional)</label>
+          <label className="label-mono mb-2 block">
+            Kommentar <span className="text-quiet">(Pflicht bei Ablehnen/Zurückweisen)</span>
+          </label>
           <textarea
             className="input"
             rows={3}

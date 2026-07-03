@@ -14,6 +14,7 @@ export function EscalationConfigPage() {
   const [enabled, setEnabled] = useState(false);
   const [sla, setSla] = useState(14);
   const [interval, setInterval] = useState(60);
+  const [reminderPercent, setReminderPercent] = useState(80);
   const [bereich, setBereich] = useState<string>("");
 
   useEffect(() => {
@@ -21,12 +22,14 @@ export function EscalationConfigPage() {
     setEnabled(data.enabled);
     setSla(data.default_sla_days);
     setInterval(data.interval_minutes);
+    setReminderPercent(data.reminder_percent);
     setBereich(data.bereichsleiter_role_id ?? "");
   }, [data]);
 
   const saveMut = useMutation({
     mutationFn: () => setEscalation({
       enabled, default_sla_days: sla, interval_minutes: interval,
+      reminder_percent: reminderPercent,
       bereichsleiter_role_id: bereich || null,
     }),
     onSuccess: () => {
@@ -51,10 +54,10 @@ export function EscalationConfigPage() {
         <p className="eyebrow mb-3">Admin · System</p>
         <h2 className="page-title">SLA-Eskalation</h2>
         <p className="page-lead">
-          Periodischer Scanner. Bei halbem SLA Erinnerung an die Stage-Rolle, bei
-          überschrittenem SLA Eskalation an die unten ausgewählte Rolle.
-          Änderungen an „enabled" oder Intervall greifen sofort — der
-          Scheduler wird neu konfiguriert.
+          Periodischer Scanner. Bei Erreichen der Vorwarn-Schwelle Erinnerung an
+          die Stage-Rolle, bei überschrittenem SLA Eskalation an die unten
+          ausgewählte Rolle. Änderungen an „enabled" oder Intervall greifen
+          sofort — der Scheduler wird neu konfiguriert.
         </p>
       </header>
 
@@ -73,6 +76,12 @@ export function EscalationConfigPage() {
           <span className="label-mono">Scan-Intervall (Minuten)</span>
           <input className="input" type="number" min={1} max={1440}
                  value={interval} onChange={(e) => setInterval(Number(e.target.value))} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label-mono">Vorwarn-Schwelle (% der SLA-Frist)</span>
+          <input className="input" type="number" min={1} max={99}
+                 value={reminderPercent} onChange={(e) => setReminderPercent(Number(e.target.value))} />
+          <span className="hint">Ab diesem Anteil der verbrauchten Frist geht die Erinnerung raus (z. B. 80 %).</span>
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="label-mono">Eskalations-Rolle (an wen wird eskaliert?)</span>
