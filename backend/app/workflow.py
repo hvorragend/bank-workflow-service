@@ -13,6 +13,7 @@ vermeidet Deadlocks am Join und entspricht der bisherigen Semantik.
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,25 @@ from . import workflow_graph as wg
 
 class WorkflowError(Exception):
     """Raised when an action is invalid for the current state."""
+
+
+# Per-Instanz-Lock: serialisiert konkurrierende Entscheidungen auf demselben
+# Antrag innerhalb des Prozesses. Ohne das koennen zwei parallele Approvals der
+# letzten Branches beide eine veraltete Sicht sehen, den Join verpassen und die
+# Instanz dauerhaft haengen lassen (F-003). Gilt fuer den dokumentierten
+# Single-Worker-Betrieb (S-007); bei Multi-Prozess-Betrieb waere zusaetzlich ein
+# DB-Lock noetig.
+_instance_locks: dict[str, threading.Lock] = {}
+_instance_locks_guard = threading.Lock()
+
+
+def instance_lock(instance_id: str) -> threading.Lock:
+    with _instance_locks_guard:
+        lock = _instance_locks.get(instance_id)
+        if lock is None:
+            lock = threading.Lock()
+            _instance_locks[instance_id] = lock
+        return lock
 
 
 def _utcnow() -> datetime:
@@ -47,6 +67,11 @@ def submit(instance: models.FormInstance) -> list[models.FormInstanceActiveStage
         raise WorkflowError("Workflow-Graph hat keine User-Tasks — Submit nicht moeglich.")
 
     instance.status = "in_pruefung"
+    # Jeder Submit startet einen neuen Durchlauf. Approvals dieses Durchlaufs
+    # zaehlen fuer die Join-Auswertung; Genehmigungen aus einem frueheren
+    # (zurueckgewiesenen) Durchlauf bleiben als Audit erhalten, wirken aber nicht
+    # mehr auf den aktuellen Ablauf (F-004).
+    instance.lauf = (instance.lauf or 0) + 1
     activated: list[models.FormInstanceActiveStage] = []
     for task in initial:
         a = models.FormInstanceActiveStage(
@@ -110,6 +135,7 @@ def decide(
     approval = models.Approval(
         instance_id=instance.id,
         stage=node_id,
+        lauf=instance.lauf,
         genehmiger=genehmiger,
         rolle=expected_rolle,
         entscheidung=entscheidung,
@@ -135,9 +161,11 @@ def decide(
     db.delete(active_row)
     db.flush()
 
-    # Approvals (incl. der gerade erzeugten) zur Arrival-Berechnung sammeln.
+    # Approvals des AKTUELLEN Durchlaufs zur Arrival-Berechnung sammeln — nicht
+    # die historischen aus einem zurueckgewiesenen Vorlauf (F-004).
     approved_node_ids = {
-        ap.stage for ap in instance.approvals if ap.entscheidung == "approved"
+        ap.stage for ap in instance.approvals
+        if ap.entscheidung == "approved" and ap.lauf == instance.lauf
     }
     approved_node_ids.add(node_id)  # gerade hinzugefuegt, evtl. noch nicht reflected
 

@@ -176,6 +176,7 @@ def refresh(
     request: Request,
     response: Response,
     bws_refresh: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
 ) -> TokenResponse:
     """Tauscht den Refresh-Cookie gegen einen neuen Access-Token. Rotiert dabei den Cookie."""
     ip = get_remote_address(request)
@@ -192,6 +193,30 @@ def refresh(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh-Token ungueltig."
         ) from None
+
+    # Status und Rechte frisch aus der DB aufloesen statt blind die alten Claims
+    # zu uebernehmen (F-008): ein deaktivierter oder in seinen Rollen beschnittener
+    # Nutzer darf nicht bis zum Ablauf (8 h) seine alten Rechte behalten und diese
+    # durch fortlaufendes Refreshen unbegrenzt verlaengern.
+    row = db.scalar(select(models.User).where(models.User.username == user.username))
+    if row is not None:
+        if not row.is_active:
+            _clear_refresh_cookie(response)
+            _audit("refresh", user.username, user.auth_source, ip,
+                   success=False, reason="Konto deaktiviert.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Konto ist deaktiviert."
+            )
+        roles, perms = resolve_user_permissions(db, row)
+        user = AuthenticatedUser(
+            username=row.username,
+            name=row.display_name,
+            email=row.email or "",
+            roles=roles,
+            permissions=perms,
+            auth_source=user.auth_source,
+        )
+    # Kein DB-User (reiner Notfall-Account o. Ae.): Claims best effort beibehalten.
 
     access_token, access_seconds = issue_access_token(user)
     new_refresh, refresh_seconds = issue_refresh_token(user)

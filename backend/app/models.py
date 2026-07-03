@@ -69,12 +69,20 @@ class FormInstance(Base):
     )
 
     daten: Mapped[dict[str, Any]] = mapped_column(JSON)
-    antragsteller: Mapped[str] = mapped_column(String(100))
-    status: Mapped[str] = mapped_column(String(20), default="entwurf")
-    # entwurf | in_pruefung | genehmigt | abgelehnt | zurueckgewiesen
+    antragsteller: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)
+    # entwurf | in_pruefung | genehmigt | abgelehnt
 
-    erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    abgeschlossen_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Durchlauf-Zaehler: wird bei jedem Submit erhoeht. Approvals werden an den
+    # Durchlauf gebunden, in dem sie entstanden sind — damit nach „Zurueckweisen
+    # + Wiedereinreichen" keine veralteten Genehmigungen die Join-Auswertung
+    # verfaelschen (Audit F-004).
+    lauf: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    abgeschlossen_am: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
     definition: Mapped[FormDefinition] = relationship(lazy="joined")
     approvals: Mapped[list[Approval]] = relationship(
@@ -121,6 +129,8 @@ class Approval(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     instance_id: Mapped[str] = mapped_column(ForeignKey("form_instances.id"), index=True)
     stage: Mapped[str] = mapped_column(String(64))  # node_id im neuen DAG-Modell
+    # Durchlauf, in dem diese Entscheidung gefallen ist (siehe FormInstance.lauf).
+    lauf: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     genehmiger: Mapped[str] = mapped_column(String(100))
     rolle: Mapped[str] = mapped_column(String(100))
     entscheidung: Mapped[str] = mapped_column(String(20))

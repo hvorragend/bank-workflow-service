@@ -427,33 +427,38 @@ def decide_instance(
     `action.node_id` adressiert den konkreten aktiven User-Task — wichtig, wenn
     parallele Branches gleichzeitig auf eine Entscheidung warten.
     """
-    instance = db.get(models.FormInstance, instance_id)
-    if not instance:
-        raise HTTPException(404, "Antrag nicht gefunden.")
+    # Konkurrierende Entscheidungen auf demselben Antrag serialisieren (F-003).
+    # Innerhalb des Locks die Session-Sicht verwerfen, damit unter dem Lock frisch
+    # gelesen wird und der zweite Genehmiger die Approval des ersten sieht.
+    with workflow.instance_lock(instance_id):
+        db.expire_all()
+        instance = db.get(models.FormInstance, instance_id)
+        if not instance:
+            raise HTTPException(404, "Antrag nicht gefunden.")
 
-    # Rolle vor der Aenderung merken (fuer Reject-/Returned-Mails).
-    pre_active = next(
-        (a for a in instance.active_stages if a.node_id == action.node_id),
-        None,
-    )
-    pre_rolle = pre_active.rolle if pre_active else "?"
-
-    try:
-        _, newly_activated = workflow.decide(
-            db, instance,
-            node_id=action.node_id,
-            genehmiger=user.username,
-            user_roles=user.roles,
-            entscheidung=action.entscheidung,
-            kommentar=action.kommentar,
+        # Rolle vor der Aenderung merken (fuer Reject-/Returned-Mails).
+        pre_active = next(
+            (a for a in instance.active_stages if a.node_id == action.node_id),
+            None,
         )
-    except workflow.WorkflowError as e:
-        msg = str(e)
-        if "Erforderliche Rolle nicht vorhanden" in msg:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, msg)
-        raise HTTPException(status.HTTP_409_CONFLICT, msg)
-    db.commit()
-    db.refresh(instance)
+        pre_rolle = pre_active.rolle if pre_active else "?"
+
+        try:
+            _, newly_activated = workflow.decide(
+                db, instance,
+                node_id=action.node_id,
+                genehmiger=user.username,
+                user_roles=user.roles,
+                entscheidung=action.entscheidung,
+                kommentar=action.kommentar,
+            )
+        except workflow.WorkflowError as e:
+            msg = str(e)
+            if "Erforderliche Rolle nicht vorhanden" in msg:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, msg)
+            raise HTTPException(status.HTTP_409_CONFLICT, msg)
+        db.commit()
+        db.refresh(instance)
 
     schema_version = f"{instance.definition.typ}/{instance.definition.version}"
     by_id = nodes_by_id(instance.definition.workflow_graph)

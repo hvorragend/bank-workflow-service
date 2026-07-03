@@ -7,15 +7,36 @@ nur die Maskendefinitionen.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
-from ..auth.dependencies import require_permission
+from .. import models, schemas, workflow_graph
+from ..auth.dependencies import get_current_user, require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 
 router = APIRouter(prefix="/definitions", tags=["definitions"])
+
+
+def _known_role_names(db: Session) -> list[str]:
+    return list(db.scalars(select(models.Role.name)).all())
+
+
+def _validate_definition_payload(payload: schemas.FormDefinitionCreate, db: Session) -> None:
+    """Dieselbe Eingangsvalidierung wie im Admin-Upload (F-007): kaputtes
+    JSON-Schema oder ein ungueltiger/zyklischer Workflow-Graph wuerde sonst
+    persistiert und erst zur Laufzeit als 500 bzw. RecursionError knallen."""
+    try:
+        Draft202012Validator.check_schema(payload.json_schema)
+    except SchemaError as e:
+        raise HTTPException(422, f"Ungueltiges JSON-Schema: {e.message}")
+    try:
+        workflow_graph.validate_graph(payload.workflow_graph, known_roles=_known_role_names(db))
+    except workflow_graph.GraphError as e:
+        raise HTTPException(422, f"Ungueltiger Workflow-Graph: {e}")
 
 
 @router.post("", response_model=schemas.FormDefinitionOut, status_code=status.HTTP_201_CREATED)
@@ -25,6 +46,7 @@ def create_definition(
     _admin: AuthenticatedUser = Depends(require_permission("definitions.upload")),
 ) -> models.FormDefinition:
     """Create a new form definition (status starts as 'draft')."""
+    _validate_definition_payload(payload, db)
     existing = db.scalar(
         select(models.FormDefinition).where(
             models.FormDefinition.typ == payload.typ,
@@ -38,7 +60,16 @@ def create_definition(
         )
     definition = models.FormDefinition(**payload.model_dump())
     db.add(definition)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Race: eine konkurrierende Anlage derselben typ/version hat den
+        # Unique-Constraint zuerst belegt -> sauberer 409 statt 500.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Definition {payload.typ}/{payload.version} existiert bereits.",
+        )
     db.refresh(definition)
     return definition
 
