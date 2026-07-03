@@ -85,10 +85,13 @@ services:
       backend:
         condition: service_healthy
     ports:
-      # An 127.0.0.1 gebunden: In Prod gehoert ein TLS-Reverse-Proxy davor,
-      # der Container-Port darf nicht direkt aus dem Netz erreichbar sein
-      # (S-009). Lokal weiterhin ueber http://localhost:8000 erreichbar.
-      - "127.0.0.1:8000:8080"
+      # Bind-Adresse ueber WEB_HTTP_BIND steuerbar. Default 0.0.0.0 = ueber die
+      # Host-IP erreichbar (funktioniert out-of-the-box, auch auf einem Server,
+      # den man per Browser von aussen anspricht).
+      # PROD-HAERTUNG (S-009): WEB_HTTP_BIND=127.0.0.1 setzen und einen
+      # TLS-Reverse-Proxy davorschalten, damit der Container-Port nicht direkt
+      # aus dem Netz erreichbar ist.
+      - "${WEB_HTTP_BIND:-0.0.0.0}:8000:8080"
     restart: unless-stopped
     logging: *default-logging
 
