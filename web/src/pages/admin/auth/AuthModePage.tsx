@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getAuthMode, setAuthMode, type AuthModeOut } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function AuthModePage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "auth-mode"], queryFn: getAuthMode,
   });
   const [mode, setMode] = useState<AuthModeOut["mode"]>("local");
@@ -28,7 +29,8 @@ export function AuthModePage() {
     onError: (e) => show((e as Error).message, "error"),
   });
 
-  if (isLoading) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading) return <LoadingCard label="Lade …" />;
 
   return (
     <section>

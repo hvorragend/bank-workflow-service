@@ -59,7 +59,7 @@ export function UploadDefinitionPage() {
     e.preventDefault();
     setError(null);
     if (!jsonSchemaFile || !uiSchemaFile) {
-      setError("Bitte beide Schema-Dateien auswaehlen.");
+      setError("Bitte beide Schema-Dateien auswählen.");
       return;
     }
     if (tab === "json") {
@@ -67,7 +67,7 @@ export function UploadDefinitionPage() {
       try {
         graph = JSON.parse(graphText);
       } catch {
-        setError("Workflow-Graph ist kein gueltiges JSON.");
+        setError("Workflow-Graph ist kein gültiges JSON.");
         return;
       }
       upload.mutate({
@@ -76,7 +76,7 @@ export function UploadDefinitionPage() {
       });
     } else {
       if (!bpmnFile) {
-        setError("Bitte eine .bpmn-Datei auswaehlen.");
+        setError("Bitte eine .bpmn-Datei auswählen.");
         return;
       }
       uploadBpmn.mutate({
@@ -95,7 +95,7 @@ export function UploadDefinitionPage() {
         <h2 className="page-title">Neue Maskenversion hochladen</h2>
         <p className="page-lead">
           Hochgeladene Definitionen starten als <em>draft</em>. Erst nach
-          Pruefung kannst du sie aktivieren — die jeweils vorhandene aktive
+          Prüfung kannst du sie aktivieren — die jeweils vorhandene aktive
           Version desselben Typs wird bei Aktivierung automatisch retired.
         </p>
         <p className="mt-3 text-[13px] text-muted">

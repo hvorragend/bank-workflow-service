@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { RequireAdmin } from "@/auth/RequireAdmin";
 import { RequirePermission } from "@/auth/RequirePermission";
 import { Layout } from "@/components/Layout";
+import { NotFoundPage, RouteErrorPage } from "@/pages/ErrorPages";
 import { ArchivePage } from "@/pages/ArchivePage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { DefinitionsPage } from "@/pages/DefinitionsPage";
@@ -39,7 +40,7 @@ import { UserEditPage } from "@/pages/admin/users/UserEditPage";
 import { UsersListPage } from "@/pages/admin/users/UsersListPage";
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
+  { path: "/login", element: <LoginPage />, errorElement: <RouteErrorPage /> },
   {
     path: "/",
     element: (
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
         <Layout />
       </ProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true,               element: <DashboardPage /> },
       { path: "antraege",          element: <InstancesPage /> },
@@ -129,6 +131,9 @@ export const router = createBrowserRouter([
             <RequirePermission permission="admin.system.rekey"><RekeyPage /></RequirePermission> },
         ],
       },
+
+      // Catch-all: unbekannte Pfade innerhalb des Layouts -> 404.
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ]);

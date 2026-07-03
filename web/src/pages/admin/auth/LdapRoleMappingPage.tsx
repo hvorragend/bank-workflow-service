@@ -3,12 +3,13 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { createLdapMapping, deleteLdapMapping, listLdapMappings, listRoles } from "@/api/admin";
+import { QueryError } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function LdapRoleMappingPage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data: mappings, isLoading } = useQuery({
+  const { data: mappings, isLoading, error } = useQuery({
     queryKey: ["admin", "ldap", "mappings"], queryFn: listLdapMappings,
   });
   const { data: roles } = useQuery({ queryKey: ["admin", "roles"], queryFn: listRoles });
@@ -30,7 +31,7 @@ export function LdapRoleMappingPage() {
     mutationFn: deleteLdapMapping,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "ldap", "mappings"] });
-      show("Mapping geloescht.");
+      show("Mapping gelöscht.");
     },
     onError: (e) => show((e as Error).message, "error"),
   });
@@ -46,43 +47,53 @@ export function LdapRoleMappingPage() {
       </header>
 
       <div className="paper mb-6 grid gap-3 md:grid-cols-[2fr_1fr_auto]">
-        <input className="input" placeholder="cn=BWS-Admins,ou=Groups,dc=bank,dc=de"
-               value={groupDn} onChange={(e) => setGroupDn(e.target.value)} />
-        <select className="input" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-          <option value="">— Rolle —</option>
-          {roles?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-        <button className="btn btn-primary" disabled={!groupDn || !roleId || addMut.isPending}
-                onClick={() => addMut.mutate()}>Hinzufuegen</button>
+        <label className="flex flex-col gap-1">
+          <span className="label-mono">Group DN</span>
+          <input id="mapping-group-dn" className="input" placeholder="cn=BWS-Admins,ou=Groups,dc=bank,dc=de"
+                 value={groupDn} onChange={(e) => setGroupDn(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label-mono">Rolle</span>
+          <select id="mapping-role" className="input" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+            <option value="">— Rolle —</option>
+            {roles?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+        <button className="btn btn-primary self-end" disabled={!groupDn || !roleId || addMut.isPending}
+                onClick={() => addMut.mutate()}>Hinzufügen</button>
       </div>
 
       <div className="paper p-0">
-        {isLoading ? (
+        {error ? (
+          <QueryError error={error} />
+        ) : isLoading ? (
           <div className="py-10 text-center text-quiet italic">Lade …</div>
         ) : (
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-quiet">
-                <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Group DN</th>
-                <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Rolle</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule-soft">
-              {mappings?.map((m) => (
-                <tr key={m.id}>
-                  <td className="px-4 py-3 font-mono text-[12px]">{m.group_dn}</td>
-                  <td className="px-4 py-3">{m.role_name}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button className="btn btn-ghost text-bad text-[12px] px-2 py-1"
-                            onClick={() => { if (confirm("Mapping loeschen?")) delMut.mutate(m.id); }}>
-                      <Trash2 size={12} /> Loeschen
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-left text-quiet">
+                  <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Group DN</th>
+                  <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Rolle</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-rule-soft">
+                {mappings?.map((m) => (
+                  <tr key={m.id}>
+                    <td className="px-4 py-3 font-mono text-[12px]">{m.group_dn}</td>
+                    <td className="px-4 py-3">{m.role_name}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button className="btn btn-ghost text-bad text-[12px] px-2 py-1"
+                              onClick={() => { if (confirm("Mapping löschen?")) delMut.mutate(m.id); }}>
+                        <Trash2 size={12} /> Löschen
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </section>

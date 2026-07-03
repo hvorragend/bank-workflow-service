@@ -7,8 +7,9 @@ import {
   listDefinitions,
   retireDefinition,
 } from "@/api/endpoints";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/Toaster";
-import { cn } from "@/lib/utils";
+import { cn, compareSemver } from "@/lib/utils";
 import type { FormDefinition } from "@/types/api";
 
 export function AdminDefinitionsPage() {
@@ -23,7 +24,7 @@ export function AdminDefinitionsPage() {
     mutationFn: activateDefinition,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["definitions"] });
-      show("Definition aktiviert. Vorgaengerversion wurde retired.");
+      show("Definition aktiviert. Vorgängerversion wurde retired.");
     },
     onError: (e) => show(`Aktivierung fehlgeschlagen: ${(e as Error).message}`, "error"),
   });
@@ -44,14 +45,14 @@ export function AdminDefinitionsPage() {
           <p className="eyebrow mb-3">Admin · Definitionen</p>
           <h2 className="page-title">Maskenverwaltung</h2>
           <p className="page-lead">
-            Lade neue Maskenversionen hoch, aktiviere Entwuerfe oder retire
+            Lade neue Maskenversionen hoch, aktiviere Entwürfe oder retire
             aktive Versionen. Aktivieren retired automatisch die jeweils aktive
             Version desselben Typs — die Versions-Garantie bleibt erhalten.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 self-start">
           <Link to="/admin/definitionen/designer" className="btn whitespace-nowrap">
-            <GitBranch size={14} /> Designer oeffnen
+            <GitBranch size={14} /> Designer öffnen
           </Link>
           <Link to="/admin/definitionen/upload" className="btn btn-ghost whitespace-nowrap">
             <Upload size={14} /> Datei hochladen
@@ -74,7 +75,7 @@ export function AdminDefinitionsPage() {
                       <div className="text-[12px] text-muted mt-0.5">{d.titel}</div>
                       <div className="font-mono text-[11px] text-quiet mt-1">v{d.version}</div>
                     </div>
-                    <span className={`badge badge-${d.status} shrink-0`}>{d.status}</span>
+                    <StatusBadge value={d.status} className="shrink-0" />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {d.status === "draft" && (
@@ -91,7 +92,7 @@ export function AdminDefinitionsPage() {
                         className="btn btn-warn text-[12px] px-3 py-1.5"
                         disabled={retireMut.isPending}
                         onClick={() => {
-                          if (confirm(`Wirklich retire? Neue Antraege gegen ${d.typ} ${d.version} sind danach nicht mehr moeglich.`)) {
+                          if (confirm(`Wirklich retire? Neue Anträge gegen ${d.typ} ${d.version} sind danach nicht mehr möglich.`)) {
                             retireMut.mutate(d.id);
                           }
                         }}
@@ -128,7 +129,7 @@ export function AdminDefinitionsPage() {
                       <Td><span className="font-mono text-[13px]">{d.typ}</span></Td>
                       <Td><span className="font-mono text-[13px]">{d.version}</span></Td>
                       <Td><span className="text-[13px] text-muted">{d.titel}</span></Td>
-                      <Td><span className={`badge badge-${d.status}`}>{d.status}</span></Td>
+                      <Td><StatusBadge value={d.status} /></Td>
                       <Td>
                         <div className="flex gap-2 flex-wrap">
                           {d.status === "draft" && (
@@ -145,7 +146,7 @@ export function AdminDefinitionsPage() {
                               className="btn btn-warn text-[12px] px-3 py-1.5"
                               disabled={retireMut.isPending}
                               onClick={() => {
-                                if (confirm(`Wirklich retire? Neue Antraege gegen ${d.typ} ${d.version} sind danach nicht mehr moeglich.`)) {
+                                if (confirm(`Wirklich retire? Neue Anträge gegen ${d.typ} ${d.version} sind danach nicht mehr möglich.`)) {
                                   retireMut.mutate(d.id);
                                 }
                               }}
@@ -178,8 +179,8 @@ export function AdminDefinitionsPage() {
 function DiffLink({ current, all }: { current: FormDefinition; all: FormDefinition[] }) {
   const peers = all
     .filter((d) => d.typ === current.typ && d.id !== current.id)
-    .sort((a, b) => a.version.localeCompare(b.version));
-  const previous = peers.filter((p) => p.version < current.version).pop();
+    .sort((a, b) => compareSemver(a.version, b.version));
+  const previous = peers.filter((p) => compareSemver(p.version, current.version) < 0).pop();
   if (!previous) return null;
   return (
     <Link
@@ -192,7 +193,7 @@ function DiffLink({ current, all }: { current: FormDefinition; all: FormDefiniti
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className={cn("label-mono pb-3 pt-5 px-4 sm:px-6 text-left")}>{children}</th>;
+  return <th scope="col" className={cn("label-mono pb-3 pt-5 px-4 sm:px-6 text-left")}>{children}</th>;
 }
 function Td({ children }: { children: React.ReactNode }) {
   return <td className="py-4 px-4 sm:px-6 align-middle">{children}</td>;

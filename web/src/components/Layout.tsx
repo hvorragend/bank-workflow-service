@@ -9,7 +9,7 @@ interface Tab { to: string; label: string; end?: boolean }
 
 const baseTabs: Tab[] = [
   { to: "/",             label: "Aktuelles", end: true },
-  { to: "/antraege",     label: "Antraege" },
+  { to: "/antraege",     label: "Anträge" },
   { to: "/archiv",       label: "Archiv" },
   { to: "/definitionen", label: "Definitionen" },
   { to: "/neu",          label: "Neuer Antrag" },
@@ -50,8 +50,11 @@ export function Layout() {
   }, [mobileOpen]);
 
   async function onLogout() {
-    await logout();
-    navigate("/login", { replace: true });
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
+    }
   }
 
   return (
@@ -89,7 +92,7 @@ export function Layout() {
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-expanded={mobileOpen}
                 aria-controls="mobile-nav"
-                aria-label={mobileOpen ? "Menue schliessen" : "Menue oeffnen"}
+                aria-label={mobileOpen ? "Menü schließen" : "Menü öffnen"}
                 className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md border border-rule text-ink hover:bg-accent-soft hover:border-accent-soft transition-colors"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}

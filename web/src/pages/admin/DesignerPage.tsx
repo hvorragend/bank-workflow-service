@@ -46,14 +46,6 @@ function makeNodeId(prefix: string, existing: Iterable<string>): string {
   return `${prefix}_${Date.now()}`;
 }
 
-function nodeLabel(n: Node<NodeData>): string {
-  if (n.data.type === "user_task") return n.data.label || n.id;
-  if (n.data.type === "start") return "Start";
-  if (n.data.type === "end") return "Ende";
-  if (n.data.type === "parallel_split") return "Parallel-Split";
-  return "Parallel-Join";
-}
-
 interface NodeData {
   type: GraphNodeType;
   label?: string;
@@ -94,7 +86,7 @@ function fromGraph(g: WorkflowGraph): { nodes: Node<NodeData>[]; edges: Edge[] }
 const PALETTE: { type: GraphNodeType; label: string; description: string }[] = [
   { type: "start", label: "Start", description: "Genau einmal pro Diagramm" },
   { type: "user_task", label: "User-Task", description: "Wartet auf Entscheidung einer Rolle" },
-  { type: "parallel_split", label: "Parallel-Split", description: "Faechert in mehrere Branches auf" },
+  { type: "parallel_split", label: "Parallel-Split", description: "Fächert in mehrere Branches auf" },
   { type: "parallel_join", label: "Parallel-Join", description: "Wartet, bis alle Branches angekommen sind" },
   { type: "end", label: "Ende", description: "Mind. einmal pro Diagramm" },
 ];
@@ -150,7 +142,7 @@ function DesignerInner() {
     () => fromGraph({
       nodes: [
         { id: "start", type: "start" },
-        { id: "task_1", type: "user_task", label: "Pruefung", rolle: "" },
+        { id: "task_1", type: "user_task", label: "Prüfung", rolle: "" },
         { id: "end", type: "end" },
       ],
       edges: [
@@ -222,7 +214,7 @@ function DesignerInner() {
   const validateMut = useMutation({
     mutationFn: () => validateGraph(toGraph(nodes, edges)),
     onSuccess: () => {
-      setValidateMsg("Graph ist gueltig.");
+      setValidateMsg("Graph ist gültig.");
       setError(null);
     },
     onError: (e: any) => {
@@ -290,7 +282,7 @@ function DesignerInner() {
             disabled={!selectedId}
             className="w-full mt-3 rounded border border-bad/30 text-bad hover:bg-bad hover:text-paper transition-colors px-2 py-1.5 text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Knoten loeschen
+            Knoten löschen
           </button>
         </aside>
 
@@ -348,12 +340,17 @@ function DesignerInner() {
                       value={selected.data.rolle || ""}
                       onChange={(e) => updateSelected({ rolle: e.target.value })}
                     >
-                      <option value="">— bitte waehlen —</option>
+                      <option value="">— bitte wählen —</option>
                       {knownRoles.map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
                     {rolesQ.isLoading && <div className="text-quiet text-[11px] mt-1">Lade Rollen …</div>}
+                    {rolesQ.isError && (
+                      <div className="hint hint-bad mt-1">
+                        Rollen konnten nicht geladen werden: {(rolesQ.error as Error).message}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="label-mono block mb-1">SLA (Tage)</label>
@@ -422,7 +419,7 @@ function DesignerInner() {
               onClick={() => validateMut.mutate()}
               disabled={validateMut.isPending}
             >
-              {validateMut.isPending ? "Pruefe …" : "Graph validieren"}
+              {validateMut.isPending ? "Prüfe …" : "Graph validieren"}
             </button>
             <button
               type="submit"

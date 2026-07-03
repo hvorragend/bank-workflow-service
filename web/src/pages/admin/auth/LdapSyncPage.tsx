@@ -10,7 +10,10 @@ export function LdapSyncPage() {
   const { show } = useToast();
   const { data: jobs } = useQuery({
     queryKey: ["admin", "ldap", "sync"], queryFn: listLdapSyncJobs,
-    refetchInterval: 3000,
+    refetchInterval: (query) =>
+      query.state.data?.some((j) => j.status === "queued" || j.status === "running")
+        ? 4000
+        : false,
   });
   const [dryRun, setDryRun] = useState(false);
 
@@ -37,7 +40,7 @@ export function LdapSyncPage() {
       <div className="paper mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
         <label className="inline-flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-          Dry-Run (zaehlen, nicht schreiben)
+          Dry-Run (zählen, nicht schreiben)
         </label>
         <button className="btn btn-primary self-start" disabled={startMut.isPending}
                 onClick={() => startMut.mutate()}>
@@ -45,15 +48,15 @@ export function LdapSyncPage() {
         </button>
       </div>
 
-      <div className="paper p-0">
+      <div className="paper p-0 overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="text-left text-quiet">
-              <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Job-ID</th>
-              <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Status</th>
-              <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Gestartet</th>
-              <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Fertig</th>
-              <th className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Counts</th>
+              <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Job-ID</th>
+              <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Status</th>
+              <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Gestartet</th>
+              <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Fertig</th>
+              <th scope="col" className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider">Counts</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-rule-soft">

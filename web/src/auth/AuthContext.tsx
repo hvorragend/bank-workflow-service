@@ -48,8 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await apiLogout();
-    setState({ status: "anonymous" });
+    // F-039: State immer auf anonym, auch wenn der Server-Logout scheitert.
+    try {
+      await apiLogout();
+    } finally {
+      setAccessToken(null);
+      setState({ status: "anonymous" });
+    }
   }, []);
 
   const value = useMemo<Ctx>(() => ({ state, login, logout }), [state, login, logout]);

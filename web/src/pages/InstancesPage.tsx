@@ -1,16 +1,14 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { listInstances, type ListInstancesParams } from "@/api/endpoints";
-import { formatDate, humanize } from "@/lib/utils";
+import { StatusBadge } from "@/components/StatusBadge";
+import { formatDate, humanize, instanceTitle } from "@/lib/utils";
 import type { FormInstance } from "@/types/api";
 
 const OFFENE_STATUS = ["entwurf", "in_pruefung"];
-
-function instanceTitle(i: FormInstance): string {
-  return i.daten?.vorhaben?.titel || i.daten?.beschluss?.titel || "(ohne Titel)";
-}
 
 function stageLabel(i: FormInstance): string {
   if (i.status === "entwurf") return "Entwurf";
@@ -41,41 +39,86 @@ export function InstancesPage() {
     queryFn: () => listInstances(queryParams),
   });
 
-  let titel = "Offene Antraege";
+  // U-005: client-seitige Such-/Statusfilter auf der geladenen Liste.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | "entwurf" | "in_pruefung">("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (data ?? []).filter((i) => {
+      if (statusFilter && i.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        instanceTitle(i).toLowerCase().includes(q) ||
+        i.antragsteller.toLowerCase().includes(q) ||
+        i.id.toLowerCase().includes(q)
+      );
+    });
+  }, [data, search, statusFilter]);
+
+  let titel = "Offene Anträge";
   let beschreibung =
-    "Alle laufenden Antraege — Entwuerfe und in Pruefung befindliche. Abgeschlossene Antraege findest du im Archiv.";
+    "Alle laufenden Anträge — Entwürfe und in Prüfung befindliche. Abgeschlossene Anträge finden Sie im Archiv.";
   if (mein) {
-    titel = "Eigene offene Antraege";
-    beschreibung = "Antraege, die du selbst angelegt hast und die noch offen sind.";
+    titel = "Eigene offene Anträge";
+    beschreibung = "Anträge, die Sie selbst angelegt haben und die noch offen sind.";
   } else if (wartet) {
-    titel = "Wartet auf deine Entscheidung";
-    beschreibung = "Antraege, deren aktuelle Stage zu einer deiner Rollen passt.";
+    titel = "Wartet auf Ihre Entscheidung";
+    beschreibung = "Anträge, deren aktuelle Stage zu einer Ihrer Rollen passt.";
   }
 
   return (
     <section>
       <header className="page-header">
-        <p className="eyebrow mb-3">Antraege</p>
+        <p className="eyebrow mb-3">Anträge</p>
         <h2 className="page-title">{titel}</h2>
         <p className="page-lead">{beschreibung}</p>
       </header>
 
+      {/* Filter/Suche */}
+      <div className="mb-5 sm:mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-quiet" aria-hidden />
+          <label htmlFor="instance-search" className="sr-only">Anträge durchsuchen</label>
+          <input
+            id="instance-search"
+            className="input pl-9"
+            placeholder="Suche nach Titel, Antragsteller oder ID …"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="sm:w-56">
+          <label htmlFor="instance-status" className="sr-only">Status filtern</label>
+          <select
+            id="instance-status"
+            className="input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          >
+            <option value="">Alle offenen</option>
+            <option value="entwurf">Entwurf</option>
+            <option value="in_pruefung">In Prüfung</option>
+          </select>
+        </div>
+      </div>
+
       {isLoading && (
         <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
-          Lade Antraege …
+          Lade Anträge …
         </div>
       )}
       {error && (
         <div className="hint hint-bad">{(error as Error).message}</div>
       )}
-      {data && data.length === 0 && (
+      {data && filtered.length === 0 && (
         <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
-          Keine offenen Antraege.
+          {data.length === 0 ? "Keine offenen Anträge." : "Keine Treffer für diese Filter."}
         </div>
       )}
-      {data && data.length > 0 && (
+      {filtered.length > 0 && (
         <div className="list-card">
-          {data.map((i) => (
+          {filtered.map((i) => (
             <Link
               key={i.id}
               to={`/antraege/${i.id}`}
@@ -99,9 +142,7 @@ export function InstancesPage() {
               <div className="hidden sm:block font-mono text-[11px] uppercase tracking-wider text-muted whitespace-nowrap">
                 {stageLabel(i)}
               </div>
-              <span className={`badge badge-${i.status} col-start-1 sm:col-auto justify-self-start sm:justify-self-auto`}>
-                {i.status}
-              </span>
+              <StatusBadge value={i.status} className="col-start-1 sm:col-auto justify-self-start sm:justify-self-auto" />
               <ChevronRight size={16} className="text-quiet hidden sm:block" />
             </Link>
           ))}

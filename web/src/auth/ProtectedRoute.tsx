@@ -9,7 +9,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   if (state.status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center text-quiet font-mono text-xs uppercase tracking-widest">
-        Sitzung wird geprueft …
+        Sitzung wird geprüft …
       </div>
     );
   }

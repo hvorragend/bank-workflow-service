@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { listPermissions } from "@/api/admin";
+import { QueryError } from "@/components/QueryStates";
 
 export function PermissionsCatalogPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "permissions"], queryFn: listPermissions,
   });
   const grouped = useMemo(() => {
@@ -23,7 +24,9 @@ export function PermissionsCatalogPage() {
           Beim App-Start werden neue Permissions automatisch angelegt.
         </p>
       </header>
-      {isLoading ? (
+      {error ? (
+        <QueryError error={error} />
+      ) : isLoading ? (
         <div className="paper py-10 text-center text-quiet italic">Lade …</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

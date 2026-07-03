@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 const KIND_LABELS: Record<string, string> = {
   field_added:        "Feld hinzugekommen",
   field_removed:      "Feld entfernt",
-  type_changed:       "Typ geaendert",
-  required_changed:   "Pflicht geaendert",
-  constraint_changed: "Constraint geaendert",
-  enum_changed:       "Enum geaendert",
+  type_changed:       "Typ geändert",
+  required_changed:   "Pflicht geändert",
+  constraint_changed: "Constraint geändert",
+  enum_changed:       "Enum geändert",
 };
 
 const KIND_CLASSES: Record<string, string> = {
@@ -41,7 +41,7 @@ export function DiffPage() {
         to="/admin/definitionen"
         className="inline-flex items-center gap-1.5 text-quiet hover:text-accent font-mono text-[11px] uppercase tracking-widest mb-6"
       >
-        <ArrowLeft size={14} /> Zurueck zur Maskenverwaltung
+        <ArrowLeft size={14} /> Zurück zur Maskenverwaltung
       </Link>
 
       <header className="page-header">
@@ -51,9 +51,9 @@ export function DiffPage() {
         </h2>
         <p className="page-lead">
           Strukturelle Unterschiede zwischen den beiden Schema-Versionen.
-          Wichtig fuer den Audit: bei jeder Aenderung muss klar sein, welche
-          Antraege auf welcher Maskenversion gestellt wurden — die Versions-
-          Garantie schuetzt Altantraege auch bei diesen Wechseln.
+          Wichtig für den Audit: bei jeder Änderung muss klar sein, welche
+          Anträge auf welcher Maskenversion gestellt wurden — die Versions-
+          Garantie schützt Altanträge auch bei diesen Wechseln.
         </p>
       </header>
 
@@ -84,7 +84,7 @@ export function DiffPage() {
             )}
           >
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="badge badge-active text-[10px]">{KIND_LABELS[d.kind] ?? d.kind}</span>
+              <span className="badge badge-neutral text-[10px]">{KIND_LABELS[d.kind] ?? d.kind}</span>
               <code className="font-mono text-[12px] sm:text-[13px] text-ink break-all">{d.path}</code>
             </div>
             {(d.before !== null || d.after !== null) && (

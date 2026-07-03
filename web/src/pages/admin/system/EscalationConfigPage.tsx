@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getEscalation, listRoles, runEscalationNow, setEscalation } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function EscalationConfigPage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data, isLoading } = useQuery({ queryKey: ["admin", "escalation"], queryFn: getEscalation });
+  const { data, isLoading, error } = useQuery({ queryKey: ["admin", "escalation"], queryFn: getEscalation });
   const { data: roles } = useQuery({ queryKey: ["admin", "roles"], queryFn: listRoles });
 
   const [enabled, setEnabled] = useState(false);
@@ -37,11 +38,12 @@ export function EscalationConfigPage() {
 
   const runMut = useMutation({
     mutationFn: runEscalationNow,
-    onSuccess: (r) => show(`Scan ausgefuehrt: ${JSON.stringify(r.counts)}`),
+    onSuccess: (r) => show(`Scan ausgeführt: ${JSON.stringify(r.counts)}`),
     onError: (e) => show((e as Error).message, "error"),
   });
 
-  if (isLoading || !data) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading || !data) return <LoadingCard label="Lade …" />;
 
   return (
     <section>
@@ -50,8 +52,8 @@ export function EscalationConfigPage() {
         <h2 className="page-title">SLA-Eskalation</h2>
         <p className="page-lead">
           Periodischer Scanner. Bei halbem SLA Erinnerung an die Stage-Rolle, bei
-          ueberschrittenem SLA Eskalation an die unten ausgewaehlte Rolle.
-          Aenderungen an „enabled" oder Intervall greifen sofort — der
+          überschrittenem SLA Eskalation an die unten ausgewählte Rolle.
+          Änderungen an „enabled" oder Intervall greifen sofort — der
           Scheduler wird neu konfiguriert.
         </p>
       </header>
@@ -87,12 +89,12 @@ export function EscalationConfigPage() {
       <div className="paper mt-6 max-w-[700px]">
         <p className="label-mono mb-2">Status</p>
         <p className="text-[13px]">
-          Scheduler {data.scheduler_running ? "laeuft" : "ist aus"}
+          Scheduler {data.scheduler_running ? "läuft" : "ist aus"}
           {data.scheduler_interval_minutes && ` (Intervall ${data.scheduler_interval_minutes} min)`}.
           Aktuelle Eskalations-Rolle: <strong>{data.bereichsleiter_role_name || "—"}</strong>.
         </p>
         <button className="btn mt-3" onClick={() => runMut.mutate()} disabled={runMut.isPending}>
-          Scan jetzt ausfuehren
+          Scan jetzt ausführen
         </button>
       </div>
     </section>

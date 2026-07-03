@@ -4,26 +4,16 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
-import { decideInstance, getInstance, submitInstance } from "@/api/endpoints";
+import { decideInstance, getInstance, patchInstance, submitInstance } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthContext";
 import { AttachmentsSection } from "@/components/AttachmentsSection";
 import { DynamicForm } from "@/components/DynamicForm";
+import { QueryError } from "@/components/QueryStates";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/Toaster";
-import { humanizeBackendError } from "@/lib/schema-rules";
-import { cn, formatDate, humanize } from "@/lib/utils";
-import type { ActiveStage, Approval, Entscheidung, FormInstance, GraphNode } from "@/types/api";
-
-function instanceTitle(i: FormInstance): string {
-  return (
-    i.daten?.vorhaben?.titel || i.daten?.beschluss?.titel || "(ohne Titel)"
-  );
-}
-
-function badgeForDecision(d: Entscheidung): string {
-  if (d === "approved") return "badge-genehmigt";
-  if (d === "rejected") return "badge-abgelehnt";
-  return "badge-zurueckgewiesen";
-}
+import { findMissingRequired, humanizeBackendError, pruneEmpty } from "@/lib/schema-rules";
+import { cn, formatDate, humanize, instanceTitle } from "@/lib/utils";
+import type { ActiveStage, Approval, Entscheidung, GraphNode } from "@/types/api";
 
 interface TimelineStep {
   node: GraphNode;
@@ -39,10 +29,11 @@ export function InstanceDetailPage() {
   const { state } = useAuth();
   const { show } = useToast();
 
-  const { data: instance, isLoading } = useQuery({
+  const { data: instance, isLoading, error } = useQuery({
     queryKey: ["instance", id],
     queryFn: () => getInstance(id),
     enabled: !!id,
+    retry: false,
   });
 
   const submitMut = useMutation({
@@ -50,6 +41,7 @@ export function InstanceDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["instance", id] });
       qc.invalidateQueries({ queryKey: ["instances"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
       show("Antrag eingereicht.");
     },
     onError: (err) => {
@@ -66,11 +58,15 @@ export function InstanceDetailPage() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["instance", id] });
       qc.invalidateQueries({ queryKey: ["instances"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
       setKommentar("");
+      // F-032: Auswahl zuruecksetzen, sonst bleibt bei parallelen Stages ein
+      // bereits entschiedener Task selektiert (Dead-End).
+      setSelectedNodeId("");
       const map: Record<Entscheidung, string> = {
         approved: "Entscheidung: genehmigt.",
         rejected: "Entscheidung: abgelehnt.",
-        returned: "Antrag zur Ueberarbeitung zurueckgewiesen.",
+        returned: "Antrag zur Überarbeitung zurückgewiesen.",
       };
       show(map[vars.entscheidung]);
     },
@@ -80,13 +76,61 @@ export function InstanceDetailPage() {
     },
   });
 
+  // U-002: Entwurf bearbeiten (nur Antragsteller; Backend erzwingt zusaetzlich).
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState<Record<string, any>>({});
+  const [invalidScopes, setInvalidScopes] = useState<Set<string>>(new Set());
+  const patchMut = useMutation({
+    mutationFn: (daten: Record<string, any>) => patchInstance(id, daten),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["instance", id] });
+      setEditing(false);
+      show("Antragsdaten gespeichert.");
+    },
+    onError: (err) => {
+      const detail = err instanceof ApiError ? err.detail : err.message;
+      show(humanizeBackendError(detail), "error");
+    },
+  });
+
+  function goBack() {
+    // U-012: sauberer Fallback, falls es keine History gibt (Direktaufruf).
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/antraege");
+  }
+
   if (isLoading) return <div className="text-quiet italic">Lade Antrag …</div>;
+  if (error) {
+    // F-033: 404 sauber vom generischen Ladefehler trennen.
+    if (error instanceof ApiError && error.status === 404) {
+      return <div className="text-bad">Antrag nicht gefunden.</div>;
+    }
+    return <QueryError error={error} />;
+  }
   if (!instance) return <div className="text-bad">Antrag nicht gefunden.</div>;
 
   const taskNodes = instance.workflow_graph.nodes.filter((n) => n.type === "user_task");
   const approvals = instance.approvals ?? [];
   const activeStages = instance.active_stages ?? [];
   const userRoles = state.status === "authenticated" ? state.user.roles : [];
+  const currentUsername = state.status === "authenticated" ? state.user.username : null;
+  const isOwner = currentUsername === instance.antragsteller;
+  const canEditDraft = instance.status === "entwurf" && isOwner;
+
+  function startEditing() {
+    setEditData(structuredClone(instance!.daten ?? {}));
+    setInvalidScopes(new Set());
+    setEditing(true);
+  }
+  function saveEdit() {
+    const missing = findMissingRequired(instance!.ui_schema, instance!.json_schema, editData);
+    if (missing.length > 0) {
+      setInvalidScopes(new Set(missing));
+      show(`Bitte ${missing.length} Pflichtfeld${missing.length > 1 ? "er" : ""} ausfüllen.`, "error");
+      return;
+    }
+    patchMut.mutate(pruneEmpty(editData));
+  }
 
   const timeline: TimelineStep[] = taskNodes.map((node) => {
     // Eine Approval-Row pro Knoten; bei Zyklen unmoeglich (Validator), also reicht "first match".
@@ -120,10 +164,10 @@ export function InstanceDetailPage() {
     <section>
       <div className="flex items-center justify-between mb-6 no-print">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="inline-flex items-center gap-1.5 text-quiet hover:text-accent font-mono text-[11px] uppercase tracking-widest"
         >
-          <ArrowLeft size={14} /> Zurueck
+          <ArrowLeft size={14} /> Zurück
         </button>
         <button
           onClick={() => window.print()}
@@ -159,19 +203,45 @@ export function InstanceDetailPage() {
         </div>
         <div className="text-[13px] sm:text-[13.5px] text-muted leading-relaxed">
           Diese Ansicht rendert exakt die <strong className="text-ink font-semibold">{instance.schema_version}</strong>-
-          Felddefinition, die zum Erstellungszeitpunkt gueltig war. Spaetere Versionen sind hier
+          Felddefinition, die zum Erstellungszeitpunkt gültig war. Spätere Versionen sind hier
           ohne Wirkung.
         </div>
-        <span className={`badge badge-${instance.status} self-start sm:self-center`}>{instance.status}</span>
+        <StatusBadge value={instance.status} className="self-start sm:self-center" />
       </div>
 
       <div className="paper">
+        {canEditDraft && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 no-print">
+            <p className="text-[13px] text-muted m-0">
+              {editing
+                ? "Bearbeitungsmodus — Änderungen an den Antragsdaten."
+                : "Dieser Entwurf kann noch bearbeitet werden."}
+            </p>
+            {editing ? (
+              <div className="flex gap-2">
+                <button className="btn" disabled={patchMut.isPending} onClick={saveEdit}>
+                  {patchMut.isPending ? "Speichern …" : "Speichern"}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={patchMut.isPending}
+                  onClick={() => { setEditing(false); setInvalidScopes(new Set()); }}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-ghost" onClick={startEditing}>Bearbeiten</button>
+            )}
+          </div>
+        )}
         <DynamicForm
           jsonSchema={instance.json_schema}
           uiSchema={instance.ui_schema}
-          data={instance.daten}
-          onChange={() => { /* read-only */ }}
-          readOnly
+          data={editing ? editData : instance.daten}
+          onChange={editing ? setEditData : () => { /* read-only */ }}
+          readOnly={!editing}
+          invalidScopes={editing ? invalidScopes : undefined}
         />
       </div>
 
@@ -210,9 +280,7 @@ export function InstanceDetailPage() {
                 {step.approval ? (
                   <div className="mt-2 text-[13px] text-muted">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`badge ${badgeForDecision(step.approval.entscheidung)}`}>
-                        {step.approval.entscheidung}
-                      </span>
+                      <StatusBadge value={step.approval.entscheidung} />
                       <span>durch <span className="text-ink font-medium">{step.approval.genehmiger}</span></span>
                       <span className="font-mono text-[11px] text-quiet">
                         {formatDate(step.approval.zeitstempel)}
@@ -251,6 +319,9 @@ export function InstanceDetailPage() {
           onDecide={(entscheidung) => {
             const target = effectiveSelected?.node_id;
             if (!target) return;
+            // U-003: finale Entscheidungen (genehmigen/ablehnen) rueckfragen.
+            if (entscheidung === "approved" && !confirm("Antrag endgültig genehmigen?")) return;
+            if (entscheidung === "rejected" && !confirm("Antrag endgültig ablehnen?")) return;
             decideMut.mutate({ nodeId: target, entscheidung });
           }}
           busy={decideMut.isPending}
@@ -311,7 +382,7 @@ function ApprovalBox({
 
       {activeStages.length > 1 && (
         <div className="mt-3">
-          <label className="label-mono mb-2 block">Aktiver Task auswaehlen ({activeStages.length} parallel)</label>
+          <label className="label-mono mb-2 block">Aktiven Task wählen ({activeStages.length} parallel)</label>
           <select
             className="input"
             value={selectedNodeId}
@@ -344,8 +415,8 @@ function ApprovalBox({
               )}
             >
               · seit {waitingDays.toFixed(1)} Tagen · SLA {slaDays} Tage
-              {slaState === "near" && " · Erinnerung faellig"}
-              {slaState === "breached" && " · SLA ueberschritten"}
+              {slaState === "near" && " · Erinnerung fällig"}
+              {slaState === "breached" && " · SLA überschritten"}
             </span>
           )}
         </div>
@@ -353,7 +424,7 @@ function ApprovalBox({
 
       {selected && !userCanDecide && (
         <div className="mt-4 hint hint-bad">
-          Deine Rollen ({userRoles.join(", ") || "keine"}) berechtigen dich nicht, in dieser Stage
+          Ihre Rollen ({userRoles.join(", ") || "keine"}) berechtigen Sie nicht, in dieser Stage
           zu entscheiden. Die Entscheidung muss durch eine Person mit der Rolle
           „{selected.rolle}" getroffen werden.
         </div>
@@ -366,7 +437,7 @@ function ApprovalBox({
             rows={3}
             value={kommentar}
             onChange={(e) => setKommentar(e.target.value)}
-            placeholder="Begruendung der Entscheidung — wird revisionssicher protokolliert"
+            placeholder="Begründung der Entscheidung — wird revisionssicher protokolliert"
             disabled={!userCanDecide || busy}
           />
         </div>
@@ -384,7 +455,7 @@ function ApprovalBox({
           disabled={!userCanDecide || busy}
           onClick={() => onDecide("returned")}
         >
-          Zur Ueberarbeitung zurueckweisen
+          Zur Überarbeitung zurückweisen
         </button>
         <button
           className="btn btn-bad"

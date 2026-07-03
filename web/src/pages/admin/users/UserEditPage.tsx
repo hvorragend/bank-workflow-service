@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   deactivateUser, getUser, listRoles, setUserPassword, setUserRoles, updateUser,
 } from "@/api/admin";
+import { QueryError } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 import { formatDate } from "@/lib/utils";
 
@@ -14,7 +15,7 @@ export function UserEditPage() {
   const { show } = useToast();
   const navigate = useNavigate();
 
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, error } = useQuery({
     queryKey: ["admin", "user", id],
     queryFn: () => getUser(id),
   });
@@ -72,6 +73,7 @@ export function UserEditPage() {
     onError: (e) => show((e as Error).message, "error"),
   });
 
+  if (error) return <QueryError error={error} />;
   if (isLoading || !user) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
 
   return (
@@ -119,20 +121,21 @@ export function UserEditPage() {
         </Card>
 
         {user.auth_source === "local" && (
-          <Card title="Passwort zuruecksetzen">
+          <Card title="Passwort zurücksetzen">
             <Field label="Neues Passwort">
               <input type="password" className="input" minLength={8}
                      value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
+            <p className="hint">Mindestens 8 Zeichen.</p>
             <button className="btn btn-warn self-start" onClick={() => pwMut.mutate()}
-                    disabled={!password || pwMut.isPending}>
+                    disabled={!password || password.length < 8 || pwMut.isPending}>
               Setzen
             </button>
           </Card>
         )}
 
         <Card title="Deaktivieren">
-          <p className="hint">Der User kann sich danach nicht mehr einloggen. Audit-Bezuege bleiben.</p>
+          <p className="hint">Der User kann sich danach nicht mehr einloggen. Audit-Bezüge bleiben.</p>
           <button className="btn btn-bad self-start mt-2"
                   onClick={() => { if (confirm(`User ${user.username} wirklich deaktivieren?`)) deactivateMut.mutate(); }}
                   disabled={deactivateMut.isPending || !user.is_active}>

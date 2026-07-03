@@ -1,4 +1,4 @@
-import { api, getAccessToken, setAccessToken } from "./client";
+import { api, apiBlob, setAccessToken } from "./client";
 import type {
   AuthUser,
   Entscheidung,
@@ -84,16 +84,25 @@ export function listInstances(params: ListInstancesParams = {}): Promise<FormIns
 }
 
 /** CSV-Export: liefert eine Blob fuer den Browser-Download. */
-export async function exportInstancesCsv(params: ListInstancesParams = {}): Promise<Blob> {
+export function exportInstancesCsv(params: ListInstancesParams = {}): Promise<Blob> {
   const sp = new URLSearchParams(toQuery(params).replace(/^\?/, ""));
   sp.set("format", "csv");
-  const token = getAccessToken();
-  const r = await fetch(`/instances?${sp.toString()}`, {
-    credentials: "include",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.blob();
+  // Ueber apiBlob → nutzt denselben Bearer-/401-Refresh-Pfad wie api().
+  return apiBlob(`/instances?${sp.toString()}`);
+}
+
+/**
+ * Zentraler Helper fuer multipart/form-data-Uploads. Nutzt den api()-Wrapper,
+ * damit Bearer-Header und 401-Refresh identisch zu JSON-Requests greifen.
+ * WICHTIG: kein Content-Type setzen — der Browser ergaenzt die multipart-Boundary.
+ */
+export function uploadForm<T>(
+  url: string,
+  fields: Record<string, string | Blob>,
+): Promise<T> {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+  return api<T>(url, { method: "POST", body: fd });
 }
 
 export interface InstanceStats {
@@ -121,28 +130,15 @@ export interface UploadDefinitionPayload {
   ui_schema: File;
 }
 
-export async function uploadDefinition(p: UploadDefinitionPayload): Promise<FormDefinition> {
-  const fd = new FormData();
-  fd.set("typ", p.typ);
-  fd.set("version", p.version);
-  fd.set("titel", p.titel);
-  fd.set("workflow_graph", JSON.stringify(p.workflow_graph));
-  fd.set("json_schema", p.json_schema);
-  fd.set("ui_schema",   p.ui_schema);
-
-  const token = getAccessToken();
-  const r = await fetch("/api/admin/definitions/upload", {
-    method: "POST",
-    body: fd,
-    credentials: "include",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+export function uploadDefinition(p: UploadDefinitionPayload): Promise<FormDefinition> {
+  return uploadForm<FormDefinition>("/api/admin/definitions/upload", {
+    typ: p.typ,
+    version: p.version,
+    titel: p.titel,
+    workflow_graph: JSON.stringify(p.workflow_graph),
+    json_schema: p.json_schema,
+    ui_schema: p.ui_schema,
   });
-  if (!r.ok) {
-    let detail = `HTTP ${r.status}`;
-    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
-    throw new Error(detail);
-  }
-  return (await r.json()) as FormDefinition;
 }
 
 export interface UploadDefinitionBpmnPayload {
@@ -154,28 +150,15 @@ export interface UploadDefinitionBpmnPayload {
   ui_schema: File;
 }
 
-export async function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Promise<FormDefinition> {
-  const fd = new FormData();
-  fd.set("typ", p.typ);
-  fd.set("version", p.version);
-  fd.set("titel", p.titel);
-  fd.set("bpmn_xml", p.bpmn_xml);
-  fd.set("json_schema", p.json_schema);
-  fd.set("ui_schema",   p.ui_schema);
-
-  const token = getAccessToken();
-  const r = await fetch("/api/admin/definitions/upload-bpmn", {
-    method: "POST",
-    body: fd,
-    credentials: "include",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+export function uploadDefinitionBpmn(p: UploadDefinitionBpmnPayload): Promise<FormDefinition> {
+  return uploadForm<FormDefinition>("/api/admin/definitions/upload-bpmn", {
+    typ: p.typ,
+    version: p.version,
+    titel: p.titel,
+    bpmn_xml: p.bpmn_xml,
+    json_schema: p.json_schema,
+    ui_schema: p.ui_schema,
   });
-  if (!r.ok) {
-    let detail = `HTTP ${r.status}`;
-    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
-    throw new Error(detail);
-  }
-  return (await r.json()) as FormDefinition;
 }
 
 export function listAdminRoles(): Promise<{ roles: string[] }> {
@@ -267,30 +250,20 @@ export function listAttachments(instanceId: string): Promise<Attachment[]> {
   return api<Attachment[]>(`/instances/${instanceId}/attachments`);
 }
 
-export async function uploadAttachment(instanceId: string, file: File): Promise<Attachment> {
-  const fd = new FormData();
-  fd.set("file", file);
-  const token = getAccessToken();
-  const r = await fetch(`/instances/${instanceId}/attachments`, {
-    method: "POST",
-    body: fd,
-    credentials: "include",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!r.ok) {
-    let detail = `HTTP ${r.status}`;
-    try { detail = (await r.json()).detail ?? detail; } catch { /* ignore */ }
-    throw new Error(detail);
-  }
-  return (await r.json()) as Attachment;
+export function uploadAttachment(instanceId: string, file: File): Promise<Attachment> {
+  return uploadForm<Attachment>(`/instances/${instanceId}/attachments`, { file });
 }
 
 export function deleteAttachment(instanceId: string, attachmentId: string): Promise<void> {
   return api<void>(`/instances/${instanceId}/attachments/${attachmentId}`, { method: "DELETE" });
 }
 
-export function attachmentDownloadUrl(instanceId: string, attachmentId: string): string {
-  return `/instances/${instanceId}/attachments/${attachmentId}`;
+/**
+ * Laedt einen Anhang mit Bearer-Header als Blob. Ein reiner <a href> wuerde
+ * ohne Authorization-Header 401 liefern — daher hier ueber apiBlob().
+ */
+export function downloadAttachment(instanceId: string, attachmentId: string): Promise<Blob> {
+  return apiBlob(`/instances/${instanceId}/attachments/${attachmentId}`);
 }
 
 export function getInstance(id: string): Promise<FormInstance> {
@@ -302,6 +275,14 @@ export function createInstance(payload: {
   daten: Record<string, any>;
 }): Promise<FormInstance> {
   return api<FormInstance>("/instances", { method: "POST", body: JSON.stringify(payload) });
+}
+
+/** Antragsdaten eines Entwurfs bearbeiten (Backend: PATCH, nur Antragsteller). */
+export function patchInstance(id: string, daten: Record<string, any>): Promise<FormInstance> {
+  return api<FormInstance>(`/instances/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ daten }),
+  });
 }
 
 export function submitInstance(id: string): Promise<FormInstance> {

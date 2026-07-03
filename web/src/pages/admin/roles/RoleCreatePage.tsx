@@ -14,7 +14,7 @@ export function RoleCreatePage() {
   const mut = useMutation({
     mutationFn: () => createRole({ name, description, permission_codes: [] }),
     onSuccess: (r) => {
-      show(`Rolle ${r.name} angelegt — bitte Permissions auswaehlen.`);
+      show(`Rolle ${r.name} angelegt — bitte Permissions auswählen.`);
       navigate(`/admin/roles/${r.id}`);
     },
     onError: (e) => show((e as Error).message, "error"),

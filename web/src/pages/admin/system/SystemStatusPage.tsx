@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getSystemStatus } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 
 export function SystemStatusPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "system", "status"], queryFn: getSystemStatus,
-    refetchInterval: 5000,
+    refetchInterval: (query) => (query.state.data?.scheduler_running ? 5000 : false),
   });
-  if (isLoading || !data) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading || !data) return <LoadingCard label="Lade …" />;
 
   return (
     <section>
@@ -20,7 +22,7 @@ export function SystemStatusPage() {
         <table className="w-full text-[13px]">
           <tbody className="divide-y divide-rule-soft">
             <Row label="DB" value={data.db_ok ? "ok" : "Fehler"} />
-            <Row label="SLA-Scheduler" value={data.scheduler_running ? "laeuft" : "aus"} />
+            <Row label="SLA-Scheduler" value={data.scheduler_running ? "läuft" : "aus"} />
             <Row label="SMTP" value={`${data.smtp_enabled ? "an" : "aus"} — ${data.smtp_host || "—"}`} />
             <Row label="LDAP" value={`${data.ldap_enabled ? "an" : "aus"} — ${data.ldap_server || "—"}`} />
             <Row label="Auth-Modus" value={data.auth_mode} />
