@@ -63,6 +63,8 @@ export interface GraphNode {
   label?: string;
   rolle?: string;
   sla_days?: number;
+  /** N-007: Vier-Augen-Prinzip — Anzahl erforderlicher Genehmigungen (Default 1). */
+  min_approvals?: number;
 }
 
 export interface GraphEdge {
@@ -98,6 +100,8 @@ export interface Approval {
   entscheidung: Entscheidung;
   kommentar: string | null;
   zeitstempel: string;
+  /** N-007: Durchlauf-Nummer, in dem diese Genehmigung erteilt wurde. */
+  lauf?: number;
 }
 
 export type InstanceStatus =
@@ -129,6 +133,8 @@ export interface FormInstance {
   ui_schema: UiSchema;
   workflow_graph: WorkflowGraph;
   schema_version: string;
+  /** N-007: aktueller Durchlauf der Instanz (fuer Vier-Augen-Zaehlung). */
+  lauf?: number;
 }
 
 export interface AuthUser {

@@ -16,6 +16,7 @@ export default defineConfig({
       // unter derselben Origin laufen.
       "/auth":        { target: "http://localhost:8000", changeOrigin: true },
       "/instances":   { target: "http://localhost:8000", changeOrigin: true },
+      "/delegations": { target: "http://localhost:8000", changeOrigin: true },
       "/definitions": { target: "http://localhost:8000", changeOrigin: true },
       // Admin-API laeuft im Frontend unter /api/admin/..., damit die SPA-Route
       // /admin/... nicht mit gleichnamigen Backend-Endpunkten kollidiert. Der

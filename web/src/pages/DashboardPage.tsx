@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Clock, FileCheck2, FileX2, Inbox } from "lucide-react";
+import { ChevronRight, Clock, FileCheck2, FileX2, Hourglass, Inbox } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { getStats, listInstances } from "@/api/endpoints";
+import { getAging, getStats, listInstances } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthContext";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn, formatDate, formatNumber, humanize, instanceTitle } from "@/lib/utils";
@@ -25,6 +25,10 @@ export function DashboardPage() {
   const { data: recent } = useQuery({
     queryKey: ["instances", { recent: true }],
     queryFn: () => listInstances({ sort: "updated_desc", limit: 5 }),
+  });
+  const { data: aging, isLoading: agingLoading } = useQuery({
+    queryKey: ["aging"],
+    queryFn: getAging,
   });
 
   const chartData = stats
@@ -94,6 +98,49 @@ export function DashboardPage() {
           linkLabel="Alle Anträge"
           linkTo="/antraege"
         />
+      </div>
+
+      {/* N-005: Aging-Report — wo stauen sich offene Tasks je Rolle? */}
+      <div className="paper mt-8 sm:mt-10">
+        <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0 inline-flex items-center gap-2">
+          <Hourglass size={20} /> Wo stockt es? (offene Tasks je Rolle)
+        </h3>
+        <p className="text-[13px] text-muted mt-1 mb-4 sm:mb-5">
+          Offene Aufgaben gruppiert nach zuständiger Rolle — inklusive des am
+          längsten wartenden Eintritts.
+        </p>
+        {agingLoading ? (
+          <div className="py-6 text-quiet italic text-sm">Lade …</div>
+        ) : !aging || aging.length === 0 ? (
+          <div className="hint hint-info">
+            Aktuell stauen sich keine offenen Tasks. Alle Rollen sind auf dem
+            neuesten Stand.
+          </div>
+        ) : (
+          <ul className="divide-y divide-rule-soft">
+            {aging.map((row) => (
+              <li
+                key={row.rolle}
+                className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="text-[14px] font-medium text-ink truncate">{row.rolle}</div>
+                  <div className="font-mono text-[11px] text-quiet mt-0.5">
+                    {row.alter_tage != null && row.aeltester_eintritt
+                      ? `ältester seit ${formatNumber(row.alter_tage)} Tag${row.alter_tage === 1 ? "" : "en"} · Eintritt ${formatDate(row.aeltester_eintritt)}`
+                      : "keine wartenden Einträge"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-display font-semibold text-[22px] sm:text-[26px] leading-none tracking-tightish text-ink">
+                    {formatNumber(row.offene_tasks)}
+                  </span>
+                  <span className="label-mono block mt-1">offen</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Chart */}
