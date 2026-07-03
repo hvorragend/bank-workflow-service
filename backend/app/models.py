@@ -343,6 +343,9 @@ class EscalationConfig(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     default_sla_days: Mapped[int] = mapped_column(Integer, default=14)
     interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    # Vorwarn-Schwelle in Prozent der SLA-Frist (N-002): ab diesem Anteil der
+    # verbrauchten Frist geht die Erinnerung raus (Default 80 % = kurz vor Bruch).
+    reminder_percent: Mapped[int] = mapped_column(Integer, default=80, server_default="80")
     bereichsleiter_role_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
     )

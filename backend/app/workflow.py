@@ -131,6 +131,13 @@ def decide(
     if entscheidung not in {"approved", "rejected", "returned"}:
         raise WorkflowError(f"Unbekannte Entscheidung: {entscheidung}.")
 
+    # N-004: Ablehnung und Zurueckweisung brauchen zwingend eine Begruendung —
+    # ohne Kommentar ist die Entscheidung fuer Antragsteller und Audit wertlos.
+    if entscheidung in {"rejected", "returned"} and not (kommentar or "").strip():
+        raise WorkflowError(
+            "Fuer Ablehnung oder Zurueckweisung ist eine Begruendung (Kommentar) erforderlich."
+        )
+
     # Audit-Eintrag wird IMMER geschrieben — auch bei Ablehnung. Stage = Knoten-ID.
     approval = models.Approval(
         instance_id=instance.id,

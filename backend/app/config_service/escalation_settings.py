@@ -13,6 +13,7 @@ class EscalationSettings:
     enabled: bool = False
     default_sla_days: int = 14
     interval_minutes: int = 60
+    reminder_percent: int = 80
     bereichsleiter_role: str = "Bereichsleiter"
 
 
@@ -29,5 +30,6 @@ def get_escalation_settings(db: Session) -> EscalationSettings:
         enabled=cfg.enabled,
         default_sla_days=cfg.default_sla_days,
         interval_minutes=cfg.interval_minutes,
+        reminder_percent=cfg.reminder_percent,
         bereichsleiter_role=role_name,
     )

@@ -456,6 +456,8 @@ def decide_instance(
             msg = str(e)
             if "Erforderliche Rolle nicht vorhanden" in msg:
                 raise HTTPException(status.HTTP_403_FORBIDDEN, msg) from e
+            if "Begruendung (Kommentar) erforderlich" in msg:
+                raise HTTPException(422, msg) from e
             raise HTTPException(status.HTTP_409_CONFLICT, msg) from e
         db.commit()
         db.refresh(instance)

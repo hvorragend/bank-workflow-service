@@ -70,7 +70,7 @@ def _antrag_titel(daten: dict) -> str:
 
 def _send_erinnerung(
     db: Session, active: models.FormInstanceActiveStage,
-    node: dict[str, Any], age_days: float, sla: int,
+    node: dict[str, Any], age_days: float, sla: int, percent: int = 80,
 ) -> str:
     smtp = get_smtp_settings(db)
     instance = active.instance
@@ -79,10 +79,15 @@ def _send_erinnerung(
         log.info("Erinnerung uebersprungen: keine Empfaenger fuer Rolle %r.", active.rolle)
         return _FAILED
     label = node.get("label") or active.node_id
+    schwelle_tage = sla * percent / 100
     mail = render(db, "sla_erinnerung", {
         "age_days": f"{age_days:.1f}",
         "stage": label,
-        "half_sla": f"{sla / 2:.0f}",
+        "schwelle_prozent": percent,
+        "schwelle_tage": f"{schwelle_tage:.0f}",
+        # Backward-Compat fuer bereits angepasste Templates: half_sla traegt jetzt
+        # den (konfigurierbaren) Schwellenwert in Tagen.
+        "half_sla": f"{schwelle_tage:.0f}",
         "sla": sla,
         "titel": _antrag_titel(instance.daten),
         "antragsteller": instance.antragsteller,
@@ -200,9 +205,14 @@ def scan_once(db: Session | None = None) -> dict[str, int]:
                                 commit=False,
                             )
                             db.commit()
-                    # Stufe 1: SLA halb verbraucht und noch nicht erinnert.
-                    elif age_days >= sla / 2 and not active.erinnerung_sent_at and not active.eskalation_sent_at:
-                        result = _send_erinnerung(db, active, node, age_days, sla)
+                    # Stufe 1: Vorwarn-Schwelle (Default 80 % der SLA) erreicht und
+                    # noch nicht erinnert (N-002, konfigurierbar via reminder_percent).
+                    elif (
+                        age_days >= sla * es.reminder_percent / 100
+                        and not active.erinnerung_sent_at
+                        and not active.eskalation_sent_at
+                    ):
+                        result = _send_erinnerung(db, active, node, age_days, sla, es.reminder_percent)
                         if result == _SENT:
                             active.erinnerung_sent_at = now
                             audit.write_event(

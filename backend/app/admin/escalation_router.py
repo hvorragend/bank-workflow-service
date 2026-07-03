@@ -35,6 +35,7 @@ def _to_out(db: Session, cfg: models.EscalationConfig) -> schemas.EscalationConf
         enabled=cfg.enabled,
         default_sla_days=cfg.default_sla_days,
         interval_minutes=cfg.interval_minutes,
+        reminder_percent=cfg.reminder_percent,
         bereichsleiter_role_id=cfg.bereichsleiter_role_id,
         bereichsleiter_role_name=role_name,
         updated_at=cfg.updated_at,
