@@ -1,15 +1,34 @@
-# Komplettes Deployment-Skelett fuer den Bank Workflow Service.
-# Backend (SQLite) + Web (React/Nginx) + MailHog (Mail-Catcher fuer Dev).
+# Haupt-Compose-File fuer den Bank Workflow Service.
+# Backend (SQLite) + Web (React/Nginx).
 #
-# Verwendung:
+# Es gibt KEINEN fest verdrahteten Mail-Catcher mehr in diesem File (S-003):
+# Der SMTP-Server wird zur Laufzeit im Admin-Panel konfiguriert. Fuer lokale
+# Mail-Tests gibt es das Dev-Override docker-compose.dev.yml (Mailpit):
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d --build
+#
+# Verwendung (Basis):
 #   ./deploy/dev-up.sh                       # bootstrap + start
 #   ./deploy/dev-down.sh                     # stop
 # oder manuell:
 #   ./deploy/bootstrap-env.sh
 #   docker compose -f deploy/docker-compose.yml up -d --build
 # Dann: http://localhost:8000
+#
+# S-007: Das Backend MUSS mit genau EINEM uvicorn-Worker laufen (im Dockerfile
+# per --workers 1 gesetzt). Der APScheduler ist ein In-Process-Singleton;
+# mehrere Worker wuerden SLA-Eskalationen doppelt ausloesen. NICHT skalieren
+# (kein `deploy.replicas > 1`, kein `docker compose up --scale backend=N`).
 
 name: bws
+
+# Wiederverwendbare Logging-Defaults (S-011): rotierende JSON-Logs, damit die
+# Platte nicht volllaeuft.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
 
@@ -32,6 +51,20 @@ services:
       STORAGE_BACKEND: filesystem
       STORAGE_ROOT: /data/attachments
       ATTACHMENT_MAX_BYTES: ${ATTACHMENT_MAX_BYTES:-26214400}
+      # --- Sicherheits-/Betriebs-Schalter (F-025/F-026). Prod-Werte: siehe
+      #     deploy/.env.example und deploy/README.md "Produktions-Haertung". ---
+      # Refresh-Cookie nur ueber HTTPS senden. Dev (http) = false, Prod = true.
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
+      # Erlaubte CORS-Origins (komma-separiert). Leer = sichere Code-Defaults
+      # (localhost). In Prod die echte Frontend-Origin setzen.
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+      # Fiktive Demo-Antraege seeden. In Prod NIE setzen (revisionsrelevant).
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-}
+      # X-Forwarded-For app-seitig auswerten. Nur setzen, wenn KEIN uvicorn
+      # --proxy-headers laeuft; hier laeuft es (Dockerfile), daher normal leer.
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-}
+      # Uvicorn-Log-Level (critical|error|warning|info|debug|trace).
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # Auth-Konfiguration aus dem Repo-config/-Verzeichnis (read-only).
       - ../config:/app/config:ro
@@ -39,6 +72,7 @@ services:
       - bws-data:/app/data
       - bws-attachments:/data/attachments
     restart: unless-stopped
+    logging: *default-logging
 
   web:
     build:
@@ -46,19 +80,17 @@ services:
       dockerfile: Dockerfile
     container_name: bws-web
     depends_on:
-      - backend
+      # S-011: Erst starten, wenn das Backend seinen HEALTHCHECK besteht
+      # (Dockerfile: GET /health). Verhindert 502 direkt nach dem Hochfahren.
+      backend:
+        condition: service_healthy
     ports:
-      - "8000:8080"
+      # An 127.0.0.1 gebunden: In Prod gehoert ein TLS-Reverse-Proxy davor,
+      # der Container-Port darf nicht direkt aus dem Netz erreichbar sein
+      # (S-009). Lokal weiterhin ueber http://localhost:8000 erreichbar.
+      - "127.0.0.1:8000:8080"
     restart: unless-stopped
-
-  # SMTP-Catcher fuer lokale Mail-Tests. UI: http://localhost:8025
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: bws-mailhog
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web-UI
-    restart: unless-stopped
+    logging: *default-logging
 
 volumes:
   bws-data:

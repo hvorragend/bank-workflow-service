@@ -6,14 +6,17 @@ requires-python = ">=3.11"
 license = { text = "Proprietary" }
 
 # Laufzeit-Abhaengigkeiten. Frontend-Build laeuft separat im web/-Workspace.
+# Floors sind bewusst angehoben (O-001, insb. python-multipart wegen
+# CVE-2024-53981). Die exakt reproduzierbaren Versionen stehen im Lockfile
+# backend/requirements.lock, das der Docker-Build installiert; diese Floors
+# definieren nur die untere Kompatibilitaetsgrenze fuer lokale Entwicklung.
 dependencies = [
-  "fastapi>=0.110.0",
-  "uvicorn[standard]>=0.27.0",
-  "sqlalchemy>=2.0.25",
-  "pydantic>=2.5.0",
-  "pydantic-settings>=2.1.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "sqlalchemy>=2.0.30",
+  "pydantic>=2.7.0",
+  "pydantic-settings>=2.2.0",
   "jsonschema>=4.21.0",
-  "python-statemachine>=2.1.2",
   # Datenbank: SQLite (in Python eingebaut) + Alembic fuer Migrationen
   "alembic>=1.13.0",
   # Auth (Phase 1 / Commit 2)
@@ -22,7 +25,8 @@ dependencies = [
   "pyjwt>=2.8.0",
   "slowapi>=0.1.9",
   # File-Upload (Phase 2 / Commit 5: Workflow-Schema-Upload via Multipart)
-  "python-multipart>=0.0.9",
+  # >=0.0.18 wegen CVE-2024-53981 (DoS ueber Multipart-Parsing).
+  "python-multipart>=0.0.18",
   # SLA-Eskalation (Phase 3 / Commit 8)
   "apscheduler>=3.10.4",
   # Verschluesselung sensibler Config-Werte in der DB (Phase 4 / Admin-Panel)
@@ -35,6 +39,8 @@ dependencies = [
 dev = [
   "pytest>=8.0",
   "httpx>=0.27.0",
+  "ruff>=0.6.0",
+  "mypy>=1.11.0",
 ]
 
 [build-system]
@@ -56,3 +62,42 @@ markers = [
   "notfall(szenario): Wiederanlauf-/Rollback-/Recovery-Smoke",
   "performance(sla_ms): Performance-Test mit SLA in Millisekunden",
 ]
+
+# ---------------------------------------------------------------------------
+# Linting (ruff) — bewusst pragmatische, nicht ueberstrenge Defaults (S-006).
+# Lokal:  ruff check app tests   /   ruff format --check app tests
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# E/F: pycodestyle+pyflakes, I: isort, UP: pyupgrade, B: bugbear, C4: comprehensions.
+select = ["E", "F", "I", "UP", "B", "C4"]
+# E501 (Zeilenlaenge) uebernimmt der Formatter; B008 kollidiert mit FastAPI-
+# Depends()-Defaults im Funktionskopf (dort ist das Absicht, kein Bug).
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests duerfen ungenutzte Fixtures/Imports und laengere Konstrukte enthalten.
+"tests/**" = ["B", "F401"]
+
+# ---------------------------------------------------------------------------
+# Typpruefung (mypy) — moderat, nicht --strict, damit Bestandcode nicht
+# blockiert. Schrittweise verschaerfbar.
+# Lokal:  mypy app
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+check_untyped_defs = true
+exclude = ["alembic/versions/", "\\.venv/"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true

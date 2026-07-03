@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+DEV_OVERRIDE="$SCRIPT_DIR/docker-compose.dev.yml"
 
 EXTRA_ARGS=()
 if [[ "${1:-}" == "--volumes" || "${1:-}" == "-v" ]]; then
@@ -17,4 +18,4 @@ else
     echo "==> Stoppe Stack. Volumes bleiben erhalten — naechster ./dev-up.sh nimmt den DB-Stand wieder auf."
 fi
 
-docker compose -f "$COMPOSE_FILE" down "${EXTRA_ARGS[@]}"
+docker compose -f "$COMPOSE_FILE" -f "$DEV_OVERRIDE" down "${EXTRA_ARGS[@]}"

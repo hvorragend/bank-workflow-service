@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Dev-Stack hochfahren: Bootstrap der .env (falls noetig), dann Komplett-Stack
-# (Backend + Web + MailHog) via docker compose. Idempotent.
+# (Backend + Web + Mailpit-Mail-Catcher) via docker compose. Idempotent.
+#
+# Der Mail-Catcher (Mailpit) kommt bewusst aus dem Dev-Override
+# docker-compose.dev.yml und ist NICHT Teil des Prod-Stacks (S-003).
 #
 # Verwendung:
 #   ./deploy/dev-up.sh
@@ -8,6 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+DEV_OVERRIDE="$SCRIPT_DIR/docker-compose.dev.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 # --- Vorbedingungen ---------------------------------------------------------
@@ -34,8 +38,8 @@ fi
 
 # --- 2. Stack starten -------------------------------------------------------
 
-echo "==> Baue und starte Container (backend + web + mailhog) ..."
-docker compose -f "$COMPOSE_FILE" up -d --build
+echo "==> Baue und starte Container (backend + web + mailpit) ..."
+docker compose -f "$COMPOSE_FILE" -f "$DEV_OVERRIDE" up -d --build
 
 # --- 3. Auf Backend-Healthcheck warten --------------------------------------
 
@@ -62,9 +66,9 @@ cat <<EOF
 
     Frontend (React):    http://localhost:8000
     OpenAPI / Swagger:   http://localhost:8000/docs
-    MailHog (Mail-UI):   http://localhost:8025
+    Mailpit (Mail-UI):   http://localhost:8025
 
-  Logs:        docker compose -f deploy/docker-compose.yml logs -f
+  Logs:        docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml logs -f
   Stoppen:     ./deploy/dev-down.sh
   Frontend-Hot-Reload: cd web && pnpm dev   (gegen das laufende Backend)
 
