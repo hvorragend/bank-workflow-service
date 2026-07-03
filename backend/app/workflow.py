@@ -138,6 +138,16 @@ def decide(
             "Fuer Ablehnung oder Zurueckweisung ist eine Begruendung (Kommentar) erforderlich."
         )
 
+    # N-007 (4-Augen): Derselbe Nutzer darf einen Knoten im selben Durchlauf nicht
+    # zweimal genehmigen — sonst waere die Mindestzahl distinkter Genehmiger
+    # trivial umgehbar.
+    if entscheidung == "approved" and any(
+        ap.stage == node_id and ap.entscheidung == "approved"
+        and ap.lauf == instance.lauf and ap.genehmiger == genehmiger
+        for ap in instance.approvals
+    ):
+        raise WorkflowError("Sie haben diese Stage in diesem Durchlauf bereits genehmigt.")
+
     # Audit-Eintrag wird IMMER geschrieben — auch bei Ablehnung. Stage = Knoten-ID.
     approval = models.Approval(
         instance_id=instance.id,
@@ -163,18 +173,26 @@ def decide(
         return approval, []
 
     # ---- approved ----
-    # Den entschiedenen Task entfernen.
+    # N-007: Knoten gilt erst als erledigt, wenn genug DISTINKTE Genehmiger
+    # zugestimmt haben. Ist die Schwelle noch nicht erreicht, bleibt die Stage
+    # aktiv und wartet auf die naechste Person.
+    approvers_here = {
+        ap.genehmiger for ap in instance.approvals
+        if ap.stage == node_id and ap.entscheidung == "approved" and ap.lauf == instance.lauf
+    }
+    approvers_here.add(genehmiger)  # gerade hinzugefuegt, evtl. noch nicht reflected
+    if len(approvers_here) < wg.min_approvals(node):
+        return approval, []
+
+    # Genug Genehmigungen: Task abschliessen.
     instance.active_stages.remove(active_row)
     db.delete(active_row)
     db.flush()
 
-    # Approvals des AKTUELLEN Durchlaufs zur Arrival-Berechnung sammeln — nicht
-    # die historischen aus einem zurueckgewiesenen Vorlauf (F-004).
-    approved_node_ids = {
-        ap.stage for ap in instance.approvals
-        if ap.entscheidung == "approved" and ap.lauf == instance.lauf
-    }
-    approved_node_ids.add(node_id)  # gerade hinzugefuegt, evtl. noch nicht reflected
+    # Fuer die Nachfolger-/Join-Aktivierung zaehlen nur Knoten, die ihre
+    # min_approvals-Schwelle im AKTUELLEN Durchlauf erreicht haben (F-004 + N-007).
+    approved_node_ids = _fully_approved_node_ids(instance, by_id)
+    approved_node_ids.add(node_id)  # gerade abgeschlossen, evtl. noch nicht reflected
 
     newly_activated: list[models.FormInstanceActiveStage] = []
     out_edges = wg.outgoing(graph, node_id)
@@ -194,6 +212,24 @@ def decide(
         instance.abgeschlossen_am = _utcnow()
 
     return approval, newly_activated
+
+
+def _fully_approved_node_ids(
+    instance: models.FormInstance, by_id: dict[str, dict]
+) -> set[str]:
+    """Knoten des aktuellen Durchlaufs, die ihre min_approvals-Schwelle (Anzahl
+    distinkter Genehmiger) erreicht haben. Nur diese zaehlen fuer die Join-
+    Auswertung — ein 4-Augen-Knoten mit erst 1 von 2 Zustimmungen nicht (N-007)."""
+    from collections import defaultdict
+
+    approvers_by_node: dict[str, set[str]] = defaultdict(set)
+    for ap in instance.approvals:
+        if ap.entscheidung == "approved" and ap.lauf == instance.lauf:
+            approvers_by_node[ap.stage].add(ap.genehmiger)
+    return {
+        nid for nid, approvers in approvers_by_node.items()
+        if len(approvers) >= wg.min_approvals(by_id.get(nid, {}))
+    }
 
 
 def _clear_active(instance: models.FormInstance) -> None:

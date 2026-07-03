@@ -33,6 +33,15 @@ def incoming(graph: dict[str, Any], node_id: str) -> list[str]:
     return [e["from"] for e in graph.get("edges", []) if e["to"] == node_id]
 
 
+def min_approvals(node: dict[str, Any]) -> int:
+    """Anzahl DISTINKTER Genehmiger, die ein User-Task braucht (N-007).
+    Default 1; ein Wert >= 2 realisiert das 4-Augen-Prinzip."""
+    ma = node.get("min_approvals")
+    if isinstance(ma, int) and ma >= 1:
+        return ma
+    return 1
+
+
 def find_start(graph: dict[str, Any]) -> str:
     for n in graph.get("nodes", []):
         if n.get("type") == "start":
@@ -140,6 +149,10 @@ def validate_graph(graph: dict[str, Any], known_roles: Iterable[str] | None = No
             sla = n.get("sla_days")
             if sla is not None and not (isinstance(sla, int) and sla > 0):
                 raise GraphError(f"User-Task {nid!r}: 'sla_days' muss positive Ganzzahl sein.")
+            # N-007: 4-Augen-Prinzip — optionale Mindestzahl DISTINKTER Genehmiger.
+            ma = n.get("min_approvals")
+            if ma is not None and not (isinstance(ma, int) and ma >= 1):
+                raise GraphError(f"User-Task {nid!r}: 'min_approvals' muss Ganzzahl >= 1 sein.")
         elif t == "parallel_split":
             if oc < 2:
                 raise GraphError(f"Parallel-Split {nid!r} muss mindestens 2 ausgehende Kanten haben.")
