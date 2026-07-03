@@ -11,6 +11,7 @@ ist (statt mit leerer Liste zu starten).
 from __future__ import annotations
 
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -30,6 +31,23 @@ from .reporting import router as reporting_router
 from .routers import attachments, definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
+
+log = logging.getLogger("app")
+
+
+def _configure_logging() -> None:
+    """O-007: schlankes, zentrales Logging beim App-Start. Level ueber die
+    Env-Variable LOG_LEVEL steuerbar (Default INFO), einheitliches Format mit
+    Zeitstempel. Bewusst kein JSON-Zwang — nur damit INFO-Logs (Scheduler,
+    Notifications, Auth) ueberhaupt sichtbar werden."""
+    level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        force=True,  # ueberschreibt ein evtl. von uvicorn/gunicorn gesetztes Basis-Setup
+    )
 
 
 # ---------- Seed-Hilfen ----------
@@ -332,6 +350,10 @@ def _seed(db) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 0. Zentrales Logging konfigurieren, bevor irgendetwas loggt.
+    _configure_logging()
+    log.info("Bank Workflow Service startet (LOG_LEVEL=%s).", os.getenv("LOG_LEVEL", "INFO"))
+
     # 1. Verschluesselung verfuegbar? Sonst hier sofort scheitern.
     from . import bootstrap
     bootstrap.assert_encryption_available()

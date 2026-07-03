@@ -5,7 +5,7 @@ from .conftest import auth_header, login_as
 
 
 def _create_and_submit(client, admin_auth, schema_typ: str, daten: dict) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == schema_typ and d["status"] == "active")
     r = client.post("/instances", json={"form_definition_id": target["id"], "daten": daten}, headers=admin_auth)
     assert r.status_code == 201, r.text
@@ -57,7 +57,7 @@ def test_filter_mein_only_owns(client):
             "begruendung": "Mindestens 50 Zeichen Begruendung mit ausreichend Inhalt fuer das Schema.",
         },
     }
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=headers).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     r = client.post("/instances", json={"form_definition_id": target["id"], "daten": valid}, headers=headers)
     assert r.status_code == 201

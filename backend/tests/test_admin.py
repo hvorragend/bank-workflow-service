@@ -106,7 +106,7 @@ def test_upload_blocks_non_admin(client):
 
 def test_diff_between_at_8_2_versions(client, admin_auth):
     """v1 und v2 unterscheiden sich um doraRelevanz — Diff muss das zeigen."""
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     v1 = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["version"] == "1.0.0")
     v2 = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["version"] == "2.0.0")
     r = client.get(f"/admin/definitions/{v1['id']}/diff/{v2['id']}", headers=admin_auth)

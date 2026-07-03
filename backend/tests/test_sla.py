@@ -56,7 +56,7 @@ def captured_mails():
 
 
 def _create_in_review_instance(client, admin_auth) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
         "antragsteller": {"name": "T", "abteilung": "IT", "datum": "2026-05-05"},

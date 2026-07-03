@@ -119,7 +119,7 @@ def test_decide_with_wrong_role_returns_403(client, admin_auth):
     """User ohne Vorstand-Rolle darf den Vorstandsbeschluss nicht in der Vorstand-Stage genehmigen."""
     from .conftest import approve_all_active
     # Admin (alle Rollen) legt einen Antrag an und treibt ihn bis zur Vorstand-Stage.
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     vb = next(d for d in defs if d["typ"] == "Vorstandsbeschluss" and d["status"] == "active")
 
     daten = {

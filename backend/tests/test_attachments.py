@@ -7,7 +7,7 @@ import pytest
 
 
 def _create_draft_instance(client, admin_auth) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["status"] == "active" and d["typ"] == "AT_8_2_Analyse")
     daten = {
         "antragsteller": {"name": "T", "abteilung": "Test", "datum": "2026-05-05"},

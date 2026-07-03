@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Sequence, Union
 
 import sqlalchemy as sa
@@ -194,13 +194,13 @@ def upgrade() -> None:
             "instance_id": inst_id,
             "node_id": node_id,
             "rolle": rolle,
-            "eingetreten_am": eingetreten or datetime.utcnow(),
+            "eingetreten_am": eingetreten or datetime.now(timezone.utc),
             "erinnerung_sent_at": erin,
             "eskalation_sent_at": esk,
         })
     if unmappable:
         raise RuntimeError(
-            "Migration 0006 abgebrochen: laufende Instanzen ohne Mapping ins neue DAG-Modell:\n"
+            "Migration 0007 abgebrochen: laufende Instanzen ohne Mapping ins neue DAG-Modell:\n"
             + "\n".join(f"  - {iid}: {reason}" for iid, reason in unmappable)
         )
     if inserts:

@@ -1,8 +1,9 @@
 """Endpoints for FormDefinitions (the versioned templates).
 
 Mit Commit 2: Schreibvorgaenge (POST, activate) erfordern die Rolle 'Admin'.
-Die GET-Endpunkte bleiben oeffentlich lesbar — sie liefern keine Antragsdaten,
-nur die Maskendefinitionen.
+F-042: Auch die GET-Endpunkte erfordern jetzt Authentifizierung und die
+Permission 'definitions.read' — sie liefern zwar keine Antragsdaten, aber die
+Maskendefinitionen (inkl. Workflow-Graph) sollen nicht anonym abrufbar sein.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, workflow_graph
-from ..auth.dependencies import get_current_user, require_permission
+from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 
@@ -79,6 +80,7 @@ def list_definitions(
     typ: str | None = None,
     nur_aktiv: bool = False,
     db: Session = Depends(get_db),
+    _: AuthenticatedUser = Depends(require_permission("definitions.read")),
 ) -> list[models.FormDefinition]:
     stmt = select(models.FormDefinition)
     if typ:
@@ -89,7 +91,11 @@ def list_definitions(
 
 
 @router.get("/{definition_id}", response_model=schemas.FormDefinitionOut)
-def get_definition(definition_id: str, db: Session = Depends(get_db)) -> models.FormDefinition:
+def get_definition(
+    definition_id: str,
+    db: Session = Depends(get_db),
+    _: AuthenticatedUser = Depends(require_permission("definitions.read")),
+) -> models.FormDefinition:
     d = db.get(models.FormDefinition, definition_id)
     if not d:
         raise HTTPException(404, "Definition nicht gefunden.")

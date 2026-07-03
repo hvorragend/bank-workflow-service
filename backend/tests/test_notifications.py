@@ -55,7 +55,7 @@ def test_emails_for_role_uses_db_users():
 def test_submit_triggers_stage_pending_mail(client, admin_auth, enable_notifications, captured_mails):
     # Eigenen Entwurf anlegen (submit ist jetzt nur durch den Antragsteller
     # erlaubt) statt einen fremden Seed-Entwurf zu verwenden.
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
         "antragsteller": {"name": "Admin", "abteilung": "IT", "datum": "2026-05-05"},
@@ -81,7 +81,7 @@ def test_submit_triggers_stage_pending_mail(client, admin_auth, enable_notificat
 
 
 def test_full_chain_sends_approved_mail_at_end(client, admin_auth, enable_notifications, captured_mails):
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
         "antragsteller": {"name": "Test", "abteilung": "IT", "datum": "2026-05-05"},
@@ -108,7 +108,7 @@ def test_full_chain_sends_approved_mail_at_end(client, admin_auth, enable_notifi
 
 
 def test_rejection_mails_antragsteller(client, admin_auth, enable_notifications, captured_mails):
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
         "antragsteller": {"name": "X", "abteilung": "Y", "datum": "2026-05-05"},

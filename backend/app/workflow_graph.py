@@ -149,6 +149,18 @@ def validate_graph(graph: dict[str, Any], known_roles: Iterable[str] | None = No
                 raise GraphError(f"Parallel-Join {nid!r} muss genau 1 ausgehende Kante haben.")
             if ic < 2:
                 raise GraphError(f"Parallel-Join {nid!r} muss mindestens 2 eingehende Kanten haben.")
+            # F-029: die unmittelbaren Vorgaenger eines Joins muessen User-Tasks
+            # sein. Eine Direktkante Split->Join (oder Join->Join) wuerde zur
+            # Laufzeit blockieren, weil der Join auf ein Approval des vorgelagerten
+            # Knotens wartet, das ein Nicht-User-Task nie liefert (Deadlock).
+            for pred in incoming(graph, nid):
+                pt = by_id[pred]["type"]
+                if pt != "user_task":
+                    raise GraphError(
+                        f"Parallel-Join {nid!r}: unmittelbarer Vorgaenger {pred!r} "
+                        f"hat Typ {pt!r}, muss aber 'user_task' sein "
+                        f"(keine Direktkante Split->Join)."
+                    )
 
 
     # 6) Jedes Blatt (kein outgoing) ist End.
@@ -275,29 +287,6 @@ def initial_active_tasks(graph: dict[str, Any]) -> list[dict[str, Any]]:
     return [by_id_node(graph, nid) for nid in _expand_to_tasks(graph, find_start(graph))]
 
 
-def successors_after_approval(graph: dict[str, Any], node_id: str) -> list[dict[str, Any]]:
-    """Welche User-Tasks werden aktiviert, nachdem `node_id` (ein User-Task)
-    genehmigt wurde? Folgt der ausgehenden Kante, expandiert Splits/Joins,
-    sammelt User-Tasks.
-
-    WICHTIG: Joins werden hier NICHT automatisch gefeuert — die Engine prueft
-    arrival-counting separat (siehe join_ready). Diese Funktion betrachtet
-    nur die "lokale" Fortschaltung von einem Task aus.
-    """
-    out = outgoing(graph, node_id)
-    if not out:
-        return []
-    return [by_id_node(graph, nid) for nid in _expand_to_tasks(graph, out[0], stop_at_join=True)]
-
-
-def successors_after_join(graph: dict[str, Any], join_id: str) -> list[dict[str, Any]]:
-    """Wenn ein Parallel-Join gefeuert hat: welche User-Tasks werden danach aktiv?"""
-    out = outgoing(graph, join_id)
-    if not out:
-        return []
-    return [by_id_node(graph, nid) for nid in _expand_to_tasks(graph, out[0])]
-
-
 def by_id_node(graph: dict[str, Any], node_id: str) -> dict[str, Any]:
     return nodes_by_id(graph)[node_id]
 
@@ -327,7 +316,8 @@ def _expand_to_tasks(
                 q.append(nxt)
         elif t == "parallel_join":
             if stop_at_join:
-                # Engine ruft `successors_after_join` separat auf.
+                # Am Join stoppen — die Join-Fortschaltung wird separat
+                # ueber arrival-counting (siehe join_ready) entschieden.
                 continue
             # Falls nicht stop_at_join: expandiere weiter (relevant fuer initial_active_tasks
             # nur, wenn ein Join direkt nach Start steht — pathologisch, aber Robustheit).
@@ -359,21 +349,3 @@ def join_ready(
     """
     pre = set(incoming(graph, join_id))
     return pre.issubset(arrived_node_ids)
-
-
-def reaches_end_only(graph: dict[str, Any], node_id: str) -> bool:
-    """True, wenn alle vom Knoten aus erreichbaren User-Tasks bereits hinter
-    uns liegen — also der naechste 'echte' Knoten ein End ist. Wird genutzt,
-    um nach der letzten Genehmigung den Status auf 'genehmigt' zu setzen."""
-    out = outgoing(graph, node_id)
-    if not out:
-        return False
-    by_id = nodes_by_id(graph)
-    cur = out[0]
-    # Springe ueber Joins (die direkt nach dem letzten Task feuern duerfen).
-    while by_id[cur]["type"] == "parallel_join":
-        nxt = outgoing(graph, cur)
-        if not nxt:
-            return False
-        cur = nxt[0]
-    return by_id[cur]["type"] == "end"

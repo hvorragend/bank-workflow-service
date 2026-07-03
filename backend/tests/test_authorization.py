@@ -25,7 +25,7 @@ VALID_AT82 = {
 
 
 def _create_at82_as(client, headers) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=headers).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     r = client.post("/instances", json={"form_definition_id": target["id"], "daten": VALID_AT82}, headers=headers)
     assert r.status_code == 201, r.text
