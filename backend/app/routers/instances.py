@@ -162,6 +162,43 @@ def _timedelta_days(days: int):
     return timedelta(days=days)
 
 
+@router.get("/aging")
+def aging(
+    db: Session = Depends(get_db),
+    _: AuthenticatedUser = Depends(require_permission("instances.read")),
+) -> list[dict]:
+    """N-005: Aging-Report — je Rolle die Anzahl offener Tasks und der aelteste
+    Eintritt. Zeigt, wo sich Genehmigungen stauen (aeltester zuerst)."""
+    rows = db.execute(
+        select(
+            models.FormInstanceActiveStage.rolle,
+            func.count(),
+            func.min(models.FormInstanceActiveStage.eingetreten_am),
+        )
+        .join(models.FormInstance,
+              models.FormInstance.id == models.FormInstanceActiveStage.instance_id)
+        .where(models.FormInstance.status == "in_pruefung")
+        .group_by(models.FormInstanceActiveStage.rolle)
+    ).all()
+
+    now = datetime.now(UTC)
+    result: list[dict] = []
+    for rolle, count, oldest in rows:
+        alter_tage = None
+        if oldest is not None:
+            if oldest.tzinfo is None:
+                oldest = oldest.replace(tzinfo=UTC)
+            alter_tage = round((now - oldest).total_seconds() / 86400, 1)
+        result.append({
+            "rolle": rolle,
+            "offene_tasks": count,
+            "aeltester_eintritt": oldest,
+            "alter_tage": alter_tage,
+        })
+    result.sort(key=lambda r: r["alter_tage"] or 0, reverse=True)
+    return result
+
+
 @router.get("")
 def list_instances(
     db: Session = Depends(get_db),
@@ -520,6 +557,7 @@ def _to_instance_with_schema(instance: models.FormInstance) -> dict:
         "daten": instance.daten,
         "antragsteller": instance.antragsteller,
         "status": instance.status,
+        "lauf": instance.lauf,
         "erstellt_am": instance.erstellt_am,
         "abgeschlossen_am": instance.abgeschlossen_am,
         "approvals": instance.approvals,

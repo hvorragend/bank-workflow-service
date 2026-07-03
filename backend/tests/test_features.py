@@ -90,3 +90,75 @@ def test_audit_json_still_default(client, admin_auth):
     r = client.get("/admin/audit", headers=admin_auth)
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+# ---------- N-005: Aging-Report ----------
+
+def test_aging_report_lists_open_tasks_per_role(client, admin_auth):
+    _submit_at82(client, admin_auth)  # aktiver Task in Rolle Fachbereichsleiter
+    r = client.get("/instances/aging", headers=admin_auth)
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    fb = next((x for x in rows if x["rolle"] == "Fachbereichsleiter"), None)
+    assert fb is not None
+    assert fb["offene_tasks"] >= 1
+    assert fb["alter_tage"] is not None
+
+
+# ---------- N-001: Vertretung/Delegation ----------
+
+def test_delegation_crud_and_self_service(client):
+    from datetime import date, timedelta
+
+    from .conftest import auth_header, login_as
+    fb = auth_header(login_as(client, "fachbereich"))
+    today = date.today().isoformat()
+    ende = (date.today() + timedelta(days=7)).isoformat()
+
+    # Anlegen
+    r = client.post("/delegations", json={"to_username": "risiko", "von_datum": today, "bis_datum": ende}, headers=fb)
+    assert r.status_code == 201, r.text
+    did = r.json()["id"]
+
+    # Eigene Liste enthaelt sie
+    own = client.get("/delegations", headers=fb).json()
+    assert any(d["id"] == did for d in own)
+
+    # Selbstvertretung und falsche Datumsreihenfolge werden abgelehnt
+    assert client.post("/delegations", json={"to_username": "fachbereich", "von_datum": today, "bis_datum": ende}, headers=fb).status_code == 400
+    assert client.post("/delegations", json={"to_username": "risiko", "von_datum": ende, "bis_datum": today}, headers=fb).status_code == 400
+
+    # Fremde Vertretung ist nicht loeschbar (404, kein Leak)
+    risiko = auth_header(login_as(client, "risiko"))
+    assert client.delete(f"/delegations/{did}", headers=risiko).status_code == 404
+
+    # Eigene loeschbar
+    assert client.delete(f"/delegations/{did}", headers=fb).status_code == 204
+
+
+def test_active_deputy_receives_role_emails():
+    """Waehrend der Vertretung ist die Mail des Vertreters bei der Rolle des
+    Abwesenden mit dabei."""
+    from datetime import date, timedelta
+
+    from sqlalchemy import select
+
+    from app import models
+    from app.config_service.role_emails import emails_for_role
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        deleg = models.Delegation(
+            from_username="fachbereich", to_username="risiko",
+            von_datum=date.today() - timedelta(days=1),
+            bis_datum=date.today() + timedelta(days=1),
+        )
+        db.add(deleg)
+        db.commit()
+        try:
+            emails = emails_for_role(db, "Fachbereichsleiter")
+            assert "risiko@test.local" in emails
+            assert "fachbereich@test.local" in emails
+        finally:
+            db.delete(deleg)
+            db.commit()

@@ -4,13 +4,14 @@ version (by id), never to "the type". This is what makes audit-safe schema versi
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -351,6 +352,20 @@ class EscalationConfig(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
     updated_by: Mapped[str] = mapped_column(String(150), default="system")
+
+
+class Delegation(Base):
+    """Abwesenheits-Vertretung (N-001): waehrend [von_datum, bis_datum] erhaelt
+    `to_username` (der Vertreter) zusaetzlich die Rollen-Benachrichtigungen von
+    `from_username` (dem Abwesenden)."""
+    __tablename__ = "delegations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    from_username: Mapped[str] = mapped_column(String(100), index=True)
+    to_username: Mapped[str] = mapped_column(String(100))
+    von_datum: Mapped[date] = mapped_column(Date)
+    bis_datum: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class RoleEmail(Base):

@@ -8,6 +8,8 @@ Duplikate werden entfernt; Reihenfolge bleibt stabil (Gruppenpostfach zuerst).
 """
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,30 +24,45 @@ def emails_for_role(db: Session, role_name: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
 
-    # Gruppenpostfaecher
-    for addr in db.scalars(
-        select(models.RoleEmail.email).where(models.RoleEmail.role_id == role.id)
-    ).all():
+    def _add(addr: str | None) -> None:
         a = (addr or "").strip()
         if a and a not in seen:
             seen.add(a)
             out.append(a)
 
+    # Gruppenpostfaecher
+    for addr in db.scalars(
+        select(models.RoleEmail.email).where(models.RoleEmail.role_id == role.id)
+    ).all():
+        _add(addr)
+
     # User mit dieser Rolle
-    user_emails = db.execute(
-        select(models.User.email)
+    role_users = db.execute(
+        select(models.User.username, models.User.email)
         .join(models.UserRole, models.UserRole.user_id == models.User.id)
         .where(
             models.UserRole.role_id == role.id,
             models.User.is_active.is_(True),
-            models.User.email.is_not(None),
         )
     ).all()
-    for (addr,) in user_emails:
-        a = (addr or "").strip()
-        if a and a not in seen:
-            seen.add(a)
-            out.append(a)
+    for _username, addr in role_users:
+        _add(addr)
+
+    # N-001: aktive Vertreter der Rolleninhaber ergaenzen.
+    usernames = [u for u, _ in role_users]
+    if usernames:
+        today = date.today()
+        deputies = db.scalars(
+            select(models.Delegation.to_username).where(
+                models.Delegation.from_username.in_(usernames),
+                models.Delegation.von_datum <= today,
+                models.Delegation.bis_datum >= today,
+            )
+        ).all()
+        for deputy in deputies:
+            user = db.scalar(select(models.User).where(models.User.username == deputy))
+            if user and user.is_active and user.email:
+                _add(user.email)
     return out
 
 
