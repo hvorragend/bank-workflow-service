@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -57,7 +57,7 @@ def _sla_days(node: dict[str, Any], default: int) -> int:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _antrag_titel(daten: dict) -> str:
@@ -146,6 +146,7 @@ def scan_once(db: Session | None = None) -> dict[str, int]:
     with _scan_lock:
         if own_session:
             db = SessionLocal()
+        assert db is not None  # ab hier garantiert gesetzt (Typ-Verengung)
         try:
             es = get_escalation_settings(db)
             actives = list(
@@ -168,7 +169,7 @@ def scan_once(db: Session | None = None) -> dict[str, int]:
                         db.commit()
                         continue
                     if stage_start.tzinfo is None:
-                        stage_start = stage_start.replace(tzinfo=timezone.utc)
+                        stage_start = stage_start.replace(tzinfo=UTC)
                     age = now - stage_start
                     age_days = age.total_seconds() / 86400.0
                     sla = _sla_days(node, es.default_sla_days)

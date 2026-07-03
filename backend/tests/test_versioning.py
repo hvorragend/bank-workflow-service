@@ -14,7 +14,6 @@ import pytest
 
 from .conftest import approve_one
 
-
 VALID_V1_DATA = {
     "antragsteller": {
         "name": "Carsten Volmer",

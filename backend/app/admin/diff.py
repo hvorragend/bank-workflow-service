@@ -13,7 +13,8 @@ reicht das. Spaetere Erweiterung folgt den realen Anwendungsfaellen.
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, Literal
+from collections.abc import Iterable
+from typing import Any, Literal
 
 DiffKind = Literal[
     "field_added",

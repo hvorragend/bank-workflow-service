@@ -27,6 +27,7 @@ def test_db_restore_smoke(client, admin_auth, tmp_path: Path):
     auf die Kopie umbiegen, Engine neu aufbauen, ein paar Endpunkte anfragen.
     """
     import os
+
     from app import database as dbmod
 
     src = Path(os.environ["DATABASE_URL"].replace("sqlite:///", ""))
@@ -47,6 +48,7 @@ def test_db_restore_smoke(client, admin_auth, tmp_path: Path):
     # Wir lesen direkt aus der Kopie, ohne die laufende Engine zu zerlegen.
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
     from app.models import FormDefinition, FormInstance
 
     eng = create_engine(f"sqlite:///{target}", connect_args={"check_same_thread": False})

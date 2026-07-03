@@ -7,7 +7,7 @@ mit den Permissions aus den DB-Rollen an, bevor das JWT ausgestellt wird.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
@@ -140,7 +140,7 @@ def _enrich_after_ldap(db: Session, user: AuthenticatedUser) -> AuthenticatedUse
         roles, perms = resolve_user_permissions(db, user_row)
         user.roles = roles
         user.permissions = perms
-        user_row.last_login_at = datetime.now(timezone.utc)
+        user_row.last_login_at = datetime.now(UTC)
         db.commit()
     return user
 
@@ -238,7 +238,7 @@ def logout(request: Request, response: Response) -> dict[str, str]:
 def me(user: AuthenticatedUser = Depends(get_current_user)) -> MeResponse:
     """Aktuell eingeloggte Identitaet plus Token-Ablauf."""
     s = get_settings()
-    exp = datetime.now(timezone.utc) + timedelta(minutes=s.jwt_access_lifetime_minutes)
+    exp = datetime.now(UTC) + timedelta(minutes=s.jwt_access_lifetime_minutes)
     return MeResponse(
         username=user.username,
         name=user.name,

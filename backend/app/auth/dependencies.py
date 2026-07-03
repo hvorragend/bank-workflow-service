@@ -15,7 +15,7 @@ nicht migrierte Aufrufer weiter funktionieren.
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import jwt
 from fastapi import Depends, HTTPException, status

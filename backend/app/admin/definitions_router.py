@@ -8,8 +8,7 @@ Persistenz durch den gleichen Validator (`workflow_graph.validate_graph`).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Iterable
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from jsonschema import Draft202012Validator
@@ -17,7 +16,8 @@ from jsonschema.exceptions import SchemaError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import audit, models, schemas as core_schemas, workflow_graph
+from .. import audit, models, workflow_graph
+from .. import schemas as core_schemas
 from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
@@ -236,7 +236,7 @@ def retire(
     if d.status != "active":
         raise HTTPException(409, f"Nur aktive Definitionen koennen retired werden (aktuell: {d.status}).")
     d.status = "retired"
-    d.gueltig_bis = datetime.now(timezone.utc)
+    d.gueltig_bis = datetime.now(UTC)
     audit.write_event(
         db, kategorie="definition", action="definition.retired",
         akteur=user.username, target_type="FormDefinition", target_id=d.id,
@@ -320,7 +320,7 @@ def revoke_reporting_token(
         raise HTTPException(404, "Token nicht gefunden.")
     if tok.revoked_at:
         return
-    tok.revoked_at = datetime.now(timezone.utc)
+    tok.revoked_at = datetime.now(UTC)
     audit.write_event(
         db, kategorie="admin_config", action="reporting_token.revoked",
         akteur=user.username, target_type="ApiToken", target_id=tok.id,

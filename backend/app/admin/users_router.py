@@ -1,7 +1,7 @@
 """Admin-Endpunkte fuer Benutzerverwaltung (lokale User in der DB)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from argon2 import PasswordHasher
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -138,7 +138,7 @@ def update_user(
             raise HTTPException(409, "Letzter aktiver Admin kann nicht deaktiviert werden.")
     for k, v in changes.items():
         setattr(target, k, v)
-    target.updated_at = datetime.now(timezone.utc)
+    target.updated_at = datetime.now(UTC)
     audit_admin(db, action="user.updated", actor=user.username,
                 target_type="User", target_id=target.id, ip=client_ip(request),
                 payload=changes)
@@ -159,7 +159,7 @@ def reset_password(
     if target.auth_source != "local":
         raise HTTPException(409, "Nur lokale User haben ein Passwort.")
     target.password_argon2 = _hasher.hash(payload.password)
-    target.updated_at = datetime.now(timezone.utc)
+    target.updated_at = datetime.now(UTC)
     audit_admin(db, action="user.password_reset", actor=user.username,
                 target_type="User", target_id=target.id, ip=client_ip(request))
     db.commit()
@@ -180,7 +180,7 @@ def set_roles(
             raise HTTPException(400, f"Rolle {rid} unbekannt.")
 
     # Prevent: removing all admin-permission roles from the last admin user
-    target.roles  # warmup relationship
+    _ = target.roles  # warmup relationship (Lazy-Load erzwingen)
     existing = list(db.scalars(
         select(models.UserRole).where(models.UserRole.user_id == target.id)
     ).all())
@@ -224,7 +224,7 @@ def delete_user(
         raise HTTPException(409, "Letzter aktiver Admin kann nicht geloescht werden.")
     # Soft-Delete: deaktivieren statt physisch loeschen — Audit-Bezug bleibt.
     target.is_active = False
-    target.updated_at = datetime.now(timezone.utc)
+    target.updated_at = datetime.now(UTC)
     audit_admin(db, action="user.deactivated", actor=user.username,
                 target_type="User", target_id=target.id, ip=client_ip(request))
     db.commit()

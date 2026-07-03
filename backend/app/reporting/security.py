@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
@@ -45,11 +45,11 @@ def require_reporting_token(
         raise HTTPException(401, "API-Token unbekannt.")
     if tok.revoked_at:
         raise HTTPException(401, "API-Token widerrufen.")
-    if tok.expires_at and tok.expires_at < datetime.now(timezone.utc):
+    if tok.expires_at and tok.expires_at < datetime.now(UTC):
         raise HTTPException(401, "API-Token abgelaufen.")
     if "reporting:read" not in (tok.scopes or []):
         raise HTTPException(403, "Token hat nicht den Scope 'reporting:read'.")
 
-    tok.last_used_at = datetime.now(timezone.utc)
+    tok.last_used_at = datetime.now(UTC)
     db.commit()
     return tok

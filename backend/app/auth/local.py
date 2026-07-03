@@ -12,7 +12,7 @@ Erfolgreiche Notfall-Logins werden vom Aufrufer (router.py) als
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -99,7 +99,7 @@ def authenticate_local(db: Session, username: str, password: str) -> Authenticat
         )
         raise LocalAuthError("User hat keinen gueltigen Passwort-Hash.") from None
 
-    user_row.last_login_at = datetime.now(timezone.utc)
+    user_row.last_login_at = datetime.now(UTC)
     db.commit()
 
     return _to_authenticated_user_db(db, user_row)

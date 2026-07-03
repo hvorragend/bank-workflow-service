@@ -14,7 +14,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -136,7 +136,7 @@ def _seed_definitions(db) -> dict[str, models.FormDefinition]:
 
 def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
     """Drei Demo-Antraege in unterschiedlichen Stadien — damit die Demo nicht leer wirkt."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1) AT-8.2-Antrag, vollstaendig genehmigt (alle drei Stages)
     at82 = models.FormInstance(
@@ -414,7 +414,7 @@ app.add_middleware(
 from .auth.rate_limit import limiter  # noqa: E402
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 app.include_router(auth_router.router)
 app.include_router(definitions.router)
@@ -447,6 +447,9 @@ def ready() -> dict:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as e:
-        from fastapi import HTTPException, status as st
-        raise HTTPException(status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}")
+        from fastapi import HTTPException
+        from fastapi import status as st
+        raise HTTPException(
+            status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}"
+        ) from e
     return {"status": "ready"}

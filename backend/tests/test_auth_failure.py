@@ -1,7 +1,7 @@
 """Negativtests: falsche Credentials, fehlender Token, abgelaufener Token, fehlende Rolle."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import jwt as pyjwt
 import pytest
@@ -29,6 +29,7 @@ def test_login_with_invalid_argon2_hash_returns_401_not_500(client):
     Hash und versuchen einen Login.
     """
     from sqlalchemy import update
+
     from app import models
     from app.database import SessionLocal
 
@@ -85,8 +86,8 @@ def test_protected_endpoint_with_expired_token_returns_401(client):
         "email": "admin@test.local",
         "roles": ["Admin"],
         "auth_source": "local",
-        "iat": int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()),
-        "exp": int((datetime.now(timezone.utc) - timedelta(minutes=5)).timestamp()),
+        "iat": int((datetime.now(UTC) - timedelta(hours=1)).timestamp()),
+        "exp": int((datetime.now(UTC) - timedelta(minutes=5)).timestamp()),
         "type": "access",
     }
     token = pyjwt.encode(payload, secret, algorithm="HS256")

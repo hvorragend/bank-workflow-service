@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
@@ -22,7 +22,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .. import audit, models, schemas, workflow
-from ..auth.dependencies import get_current_user, require_permission
+from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 from ..notifications import dispatcher as notify
@@ -97,7 +97,7 @@ def stats(
         db.execute(
             select(models.FormInstance.status, func.count())
             .group_by(models.FormInstance.status)
-        ).all()
+        ).tuples().all()
     )
 
     # Pro-Stage-Counts (active stages aus der neuen Tabelle).
@@ -105,7 +105,7 @@ def stats(
         db.execute(
             select(models.FormInstanceActiveStage.node_id, func.count())
             .group_by(models.FormInstanceActiveStage.node_id)
-        ).all()
+        ).tuples().all()
     )
 
     # Wartet auf mich: Anzahl aktiver Stages, deren Rolle in user.roles liegt.
@@ -120,7 +120,7 @@ def stats(
         .where(models.FormInstance.antragsteller == user.username)
     ) or 0
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - _timedelta_days(7)
     last7_created = db.scalar(
         select(func.count())
@@ -285,7 +285,7 @@ def _validate_against_definition(daten: dict, definition: models.FormDefinition)
                 f"Validierungsfehler gegen Schema {definition.typ}/{definition.version}: "
                 f"{e.message} (Pfad: {'/'.join(str(p) for p in e.absolute_path)})"
             ),
-        )
+        ) from e
 
 
 @router.post("", response_model=schemas.FormInstanceWithSchema, status_code=status.HTTP_201_CREATED)
@@ -391,7 +391,7 @@ def submit_instance(
     try:
         activated = workflow.submit(instance)
     except workflow.WorkflowError as e:
-        raise HTTPException(409, str(e))
+        raise HTTPException(409, str(e)) from e
     db.commit()
     db.refresh(instance)
 
@@ -455,8 +455,8 @@ def decide_instance(
         except workflow.WorkflowError as e:
             msg = str(e)
             if "Erforderliche Rolle nicht vorhanden" in msg:
-                raise HTTPException(status.HTTP_403_FORBIDDEN, msg)
-            raise HTTPException(status.HTTP_409_CONFLICT, msg)
+                raise HTTPException(status.HTTP_403_FORBIDDEN, msg) from e
+            raise HTTPException(status.HTTP_409_CONFLICT, msg) from e
         db.commit()
         db.refresh(instance)
 

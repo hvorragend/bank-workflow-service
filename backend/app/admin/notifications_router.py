@@ -1,7 +1,7 @@
 """Admin-Endpunkte fuer SMTP, E-Mail-Templates und Rollen-Empfaenger."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from string import Template
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
-from ..config_service.smtp_settings import get_smtp_settings
 from ..config_service.templates import list_template_keys
 from ..database import get_db
 from ..notifications.smtp import NotificationsDisabled, send_email
@@ -65,7 +64,7 @@ def set_smtp(
         cfg.password_enc = None
     else:
         cfg.password_enc = secrets.encrypt(pw)
-    cfg.updated_at = datetime.now(timezone.utc)
+    cfg.updated_at = datetime.now(UTC)
     cfg.updated_by = user.username
     audit_admin(db, action="smtp_config.updated", actor=user.username,
                 target_type="SmtpConfig", target_id="1", ip=client_ip(request),
@@ -84,13 +83,13 @@ def smtp_test(
     try:
         send_email(to=[payload.to], subject=payload.subject, body=payload.body, db=db)
     except NotificationsDisabled:
-        raise HTTPException(409, "SMTP ist deaktiviert (enabled=False).")
+        raise HTTPException(409, "SMTP ist deaktiviert (enabled=False).") from None
     except Exception as e:  # noqa: BLE001
         audit_admin(db, action="smtp_test.failed", actor=user.username,
                     target_type="SmtpConfig", target_id="1", ip=client_ip(request),
                     payload={"to": payload.to, "error": str(e)})
         db.commit()
-        raise HTTPException(502, f"Versand fehlgeschlagen: {e}")
+        raise HTTPException(502, f"Versand fehlgeschlagen: {e}") from e
     audit_admin(db, action="smtp_test.sent", actor=user.username,
                 target_type="SmtpConfig", target_id="1", ip=client_ip(request),
                 payload={"to": payload.to})
@@ -149,7 +148,7 @@ def update_template(
     else:
         r.subject = payload.subject
         r.body = payload.body
-    r.updated_at = datetime.now(timezone.utc)
+    r.updated_at = datetime.now(UTC)
     r.updated_by = user.username
     audit_admin(db, action="notification_template.updated", actor=user.username,
                 target_type="NotificationTemplate", target_id=key, ip=client_ip(request))

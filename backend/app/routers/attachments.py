@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import audit, models
-from ..auth.dependencies import get_current_user, require_permission
+from ..auth.dependencies import require_permission
 from ..auth.schemas import AuthenticatedUser
 from ..database import get_db
 from ..storage import get_storage
@@ -111,7 +111,7 @@ async def upload_attachment(
         sha256=sha,
         storage_key=sha,
         uploaded_by=user.username,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=datetime.now(UTC),
     )
     db.add(att)
     audit.write_event(

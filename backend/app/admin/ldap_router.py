@@ -1,7 +1,7 @@
 """Admin-Endpunkte fuer LDAP-Konfiguration, Group-Mapping, Test-Bind und Sync."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -77,7 +77,7 @@ def update_config(
     else:
         cfg.service_account_pw_enc = secrets.encrypt(pw_change)
 
-    cfg.updated_at = datetime.now(timezone.utc)
+    cfg.updated_at = datetime.now(UTC)
     cfg.updated_by = user.username
     audit_admin(db, action="ldap_config.updated", actor=user.username,
                 target_type="LdapConfig", target_id="1", ip=client_ip(request),

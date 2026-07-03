@@ -7,6 +7,8 @@ Maskendefinitionen (inkl. Workflow-Graph) sollen nicht anonym abrufbar sein.
 """
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -33,11 +35,11 @@ def _validate_definition_payload(payload: schemas.FormDefinitionCreate, db: Sess
     try:
         Draft202012Validator.check_schema(payload.json_schema)
     except SchemaError as e:
-        raise HTTPException(422, f"Ungueltiges JSON-Schema: {e.message}")
+        raise HTTPException(422, f"Ungueltiges JSON-Schema: {e.message}") from e
     try:
         workflow_graph.validate_graph(payload.workflow_graph, known_roles=_known_role_names(db))
     except workflow_graph.GraphError as e:
-        raise HTTPException(422, f"Ungueltiger Workflow-Graph: {e}")
+        raise HTTPException(422, f"Ungueltiger Workflow-Graph: {e}") from e
 
 
 @router.post("", response_model=schemas.FormDefinitionOut, status_code=status.HTTP_201_CREATED)
@@ -70,7 +72,7 @@ def create_definition(
         raise HTTPException(
             status_code=409,
             detail=f"Definition {payload.typ}/{payload.version} existiert bereits.",
-        )
+        ) from None
     db.refresh(definition)
     return definition
 
@@ -123,10 +125,10 @@ def activate(
             models.FormDefinition.id != d.id,
         )
     ).all()
-    from datetime import datetime, timezone
+    from datetime import datetime
     for other in others:
         other.status = "retired"
-        other.gueltig_bis = datetime.now(timezone.utc)
+        other.gueltig_bis = datetime.now(UTC)
 
     d.status = "active"
     db.commit()

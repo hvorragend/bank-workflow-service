@@ -10,7 +10,6 @@ import pytest
 
 from .conftest import approve_all_active, approve_one, auth_header, login_as, reject_one
 
-
 VORSTAND_DATEN = {
     "fachbereich_kopf": {
         "entscheidungstraeger": "Vorstand",

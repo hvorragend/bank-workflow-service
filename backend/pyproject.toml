@@ -97,7 +97,5 @@ warn_unused_configs = true
 no_implicit_optional = true
 check_untyped_defs = true
 exclude = ["alembic/versions/", "\\.venv/"]
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
+# CI prueft `mypy app` (Tests bleiben aussen vor). Wird spaeter auch `tests`
+# getypt, hier einen Override `module = "tests.*"` mit ignore_errors ergaenzen.

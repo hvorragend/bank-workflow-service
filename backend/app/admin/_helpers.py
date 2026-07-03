@@ -6,7 +6,6 @@ import os
 from fastapi import Request
 
 from .. import audit, models
-from ..auth.schemas import AuthenticatedUser
 
 # X-Forwarded-For ist client-setzbar und darf nur dann vertraut werden, wenn ein
 # vorgeschalteter Reverse-Proxy den Header kontrolliert. Bevorzugt wird uvicorn

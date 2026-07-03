@@ -14,7 +14,6 @@ import pytest
 
 from app.workflow_graph import GraphError, validate_graph
 
-
 KNOWN_ROLES = ["Fachbereichsleiter", "Risikomanagement", "Compliance", "Vorstand"]
 
 

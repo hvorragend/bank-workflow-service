@@ -6,7 +6,7 @@ liegen seit dem Admin-Panel in der DB — die Fixtures setzen sie dort.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -84,7 +84,7 @@ def _backdate_stage(instance_id: str, days_ago: float) -> None:
     with SessionLocal() as db:
         inst = db.get(FormInstance, instance_id)
         for active in inst.active_stages:
-            active.eingetreten_am = datetime.now(timezone.utc) - timedelta(days=days_ago)
+            active.eingetreten_am = datetime.now(UTC) - timedelta(days=days_ago)
             active.erinnerung_sent_at = None
             active.eskalation_sent_at = None
         db.commit()

@@ -14,7 +14,7 @@ vermeidet Deadlocks am Join und entspricht der bisherigen Semantik.
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -46,7 +46,7 @@ def instance_lock(instance_id: str) -> threading.Lock:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------- Submit ----------

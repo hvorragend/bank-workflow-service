@@ -48,6 +48,7 @@ def test_create_definition_rejects_invalid_json_schema(client, admin_auth):
 
 def _set_active(username: str, active: bool) -> None:
     from sqlalchemy import select
+
     from app import models
     from app.database import SessionLocal
     with SessionLocal() as db:

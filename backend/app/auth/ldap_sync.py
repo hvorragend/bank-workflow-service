@@ -18,7 +18,7 @@ import tempfile
 import threading
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +75,7 @@ def start_sync_job(*, dry_run: bool = False, actor: str = "system") -> SyncJob:
 
 def _run_sync(job: SyncJob, actor: str) -> None:
     job.status = "running"
-    job.started_at = datetime.now(timezone.utc)
+    job.started_at = datetime.now(UTC)
     try:
         with SessionLocal() as db:
             cfg = get_ldap_settings(db)
@@ -89,7 +89,7 @@ def _run_sync(job: SyncJob, actor: str) -> None:
         job.error = str(e)
         job.status = "error"
     finally:
-        job.finished_at = datetime.now(timezone.utc)
+        job.finished_at = datetime.now(UTC)
 
 
 def _do_sync(db: Session, cfg: LdapSettings, job: SyncJob) -> dict[str, int]:

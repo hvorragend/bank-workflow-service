@@ -9,7 +9,8 @@ Workflow-Engine (Naechster-Knoten-Bestimmung in workflow.decide).
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 NODE_TYPES = {"start", "end", "user_task", "parallel_split", "parallel_join"}
 
@@ -104,8 +105,8 @@ def validate_graph(graph: dict[str, Any], known_roles: Iterable[str] | None = No
         raise GraphError(f"Knoten nicht von Start erreichbar: {sorted(missing)}.")
 
     # 4b) Outgoing-/Incoming-Anzahl pro Knotentyp.
-    out_count = {nid: 0 for nid in by_id}
-    in_count = {nid: 0 for nid in by_id}
+    out_count = dict.fromkeys(by_id, 0)
+    in_count = dict.fromkeys(by_id, 0)
     for e in edges:
         out_count[e["from"]] += 1
         in_count[e["to"]] += 1
@@ -190,8 +191,8 @@ def _bfs_reachable(graph: dict[str, Any], start_id: str) -> set[str]:
 def _find_cycle(graph: dict[str, Any], start_id: str, by_id: dict[str, dict]) -> list[str] | None:
     """DFS mit Coloring. Gibt einen Zyklus als Knotenpfad zurueck, falls vorhanden."""
     WHITE, GREY, BLACK = 0, 1, 2
-    color: dict[str, int] = {nid: WHITE for nid in by_id}
-    parent: dict[str, str | None] = {nid: None for nid in by_id}
+    color: dict[str, int] = dict.fromkeys(by_id, WHITE)
+    parent: dict[str, str | None] = dict.fromkeys(by_id)
 
     def dfs(u: str) -> list[str] | None:
         color[u] = GREY

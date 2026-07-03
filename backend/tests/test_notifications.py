@@ -14,8 +14,8 @@ from .conftest import approve_one, auth_header, login_as, reject_one
 @pytest.fixture
 def enable_notifications():
     """Aktiviert SMTP in der DB-Config (smtp_config-Row id=1, enabled=True)."""
-    from app.database import SessionLocal
     from app import models
+    from app.database import SessionLocal
 
     with SessionLocal() as db:
         cfg = db.get(models.SmtpConfig, 1)

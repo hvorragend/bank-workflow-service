@@ -35,16 +35,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      # ruff/mypy sind zunaechst ADVISORY (continue-on-error): der Bestandcode
-      # hat noch offene Lint-/Typ-Findings. So ist das Tooling verdrahtet und
-      # sichtbar, blockiert aber nicht sofort. Sobald der Backlog abgearbeitet
-      # ist, hier `continue-on-error` entfernen und damit hart schalten.
+      # Harte Gates: ruff (Lint) und mypy (Typen) muessen sauber sein — der
+      # Alt-Backlog wurde abgearbeitet (app+tests: 0 ruff-Findings, app: 0 mypy-Fehler).
       - name: Lint (ruff)
-        continue-on-error: true
         run: ruff check app tests
 
       - name: Typecheck (mypy)
-        continue-on-error: true
         run: mypy app
 
       # Harter Gate: Tests muessen gruen sein.
