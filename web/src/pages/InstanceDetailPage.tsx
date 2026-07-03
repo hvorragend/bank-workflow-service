@@ -309,6 +309,8 @@ export function InstanceDetailPage() {
         <ApprovalBox
           activeStages={activeStages}
           taskNodes={taskNodes}
+          approvals={approvals}
+          instanceLauf={instance.lauf}
           userRoles={userRoles}
           selectedNodeId={effectiveSelected?.node_id ?? ""}
           setSelectedNodeId={setSelectedNodeId}
@@ -361,6 +363,8 @@ export function InstanceDetailPage() {
 interface ABProps {
   activeStages: ActiveStage[];
   taskNodes: GraphNode[];
+  approvals: Approval[];
+  instanceLauf: number | undefined;
   userRoles: string[];
   selectedNodeId: string;
   setSelectedNodeId: (v: string) => void;
@@ -373,7 +377,7 @@ interface ABProps {
 }
 
 function ApprovalBox({
-  activeStages, taskNodes, userRoles,
+  activeStages, taskNodes, approvals, instanceLauf, userRoles,
   selectedNodeId, setSelectedNodeId,
   waitingDays, slaState,
   kommentar, setKommentar, onDecide, busy,
@@ -383,9 +387,39 @@ function ApprovalBox({
   const userCanDecide = !!selected && userRoles.includes(selected.rolle);
   const slaDays = node?.sla_days ?? 14;
 
+  // N-007: Vier-Augen-Prinzip. Erforderliche Genehmigungen vs. bereits
+  // erteilte (distinkte Genehmiger im aktuellen Durchlauf der Instanz).
+  const minApprovals = node?.min_approvals ?? 1;
+  const approvedCount =
+    selected && minApprovals > 1
+      ? new Set(
+          approvals
+            .filter(
+              (a) =>
+                a.stage === selected.node_id &&
+                a.entscheidung === "approved" &&
+                a.lauf === instanceLauf,
+            )
+            .map((a) => a.genehmiger),
+        ).size
+      : 0;
+
   return (
     <div className="mt-6 sm:mt-8 rounded-lg border border-rule border-l-[3px] border-l-warn bg-paper shadow-card px-5 sm:px-8 py-5 sm:py-7">
-      <h3 className="font-display font-semibold text-xl sm:text-2xl m-0">Entscheidung treffen</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display font-semibold text-xl sm:text-2xl m-0">Entscheidung treffen</h3>
+        {selected && minApprovals > 1 && (
+          <span
+            className={cn(
+              "badge",
+              approvedCount >= minApprovals ? "badge-genehmigt" : "badge-neutral",
+            )}
+            title="Vier-Augen-Prinzip: erforderliche Genehmigungen"
+          >
+            4-Augen: {approvedCount} von {minApprovals} Genehmigungen
+          </span>
+        )}
+      </div>
 
       {activeStages.length > 1 && (
         <div className="mt-3">

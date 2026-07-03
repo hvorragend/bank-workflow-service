@@ -51,6 +51,7 @@ interface NodeData {
   label?: string;
   rolle?: string;
   sla_days?: number;
+  min_approvals?: number;
 }
 
 function toGraph(nodes: Node<NodeData>[], edges: Edge[]): WorkflowGraph {
@@ -60,6 +61,10 @@ function toGraph(nodes: Node<NodeData>[], edges: Edge[]): WorkflowGraph {
       base.label = n.data.label;
       base.rolle = n.data.rolle;
       if (n.data.sla_days) base.sla_days = n.data.sla_days;
+      // N-007: min_approvals nur schreiben, wenn > 1 (1 ist der Default).
+      if (n.data.min_approvals && n.data.min_approvals > 1) {
+        base.min_approvals = n.data.min_approvals;
+      }
     }
     return base;
   });
@@ -72,7 +77,7 @@ function fromGraph(g: WorkflowGraph): { nodes: Node<NodeData>[]; edges: Edge[] }
     id: n.id,
     type: "bws",
     position: { x: 200 + (idx % 4) * 220, y: 80 + Math.floor(idx / 4) * 140 },
-    data: { type: n.type, label: n.label, rolle: n.rolle, sla_days: n.sla_days },
+    data: { type: n.type, label: n.label, rolle: n.rolle, sla_days: n.sla_days, min_approvals: n.min_approvals },
   }));
   const edges: Edge[] = g.edges.map((e, i) => ({
     id: `e_${i}`,
@@ -364,6 +369,23 @@ function DesignerInner() {
                       }
                       placeholder="optional"
                     />
+                  </div>
+                  <div>
+                    <label className="label-mono block mb-1">Min. Genehmiger (4-Augen)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      min={1}
+                      value={selected.data.min_approvals ?? ""}
+                      onChange={(e) =>
+                        updateSelected({ min_approvals: e.target.value ? Number(e.target.value) : undefined })
+                      }
+                      placeholder="1 (Standard)"
+                    />
+                    <div className="text-quiet text-[11px] mt-1 leading-snug">
+                      Anzahl verschiedener Personen, die genehmigen müssen. Werte
+                      &gt; 1 erzwingen das Vier-Augen-Prinzip.
+                    </div>
                   </div>
                 </>
               )}

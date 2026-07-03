@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileText, Paperclip, Trash2, Upload } from "lucide-react";
+import { Download, Eye, FileText, Paperclip, Trash2, Upload } from "lucide-react";
 
 import {
   deleteAttachment,
@@ -13,6 +13,11 @@ import { useToast } from "@/components/Toaster";
 import { cn, formatDate } from "@/lib/utils";
 
 const ALLOWED_EXTS = [".pdf", ".xlsx", ".docx", ".png", ".jpg", ".jpeg"];
+
+/** N-006: PDF-Anhaenge bekommen eine Inline-Vorschau. */
+function isPdf(a: Attachment): boolean {
+  return a.content_type === "application/pdf" || a.filename.toLowerCase().endsWith(".pdf");
+}
 
 interface Props {
   instanceId: string;
@@ -67,6 +72,19 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
     onError: (e) => show(`Download fehlgeschlagen: ${(e as Error).message}`, "error"),
   });
 
+  // N-006: PDF-Vorschau — laedt ueber denselben Bearer-/Blob-Pfad wie der
+  // Download und oeffnet den Object-URL in einem neuen Tab. Der URL wird erst
+  // nach kurzem Timeout freigegeben, sonst bricht die Anzeige im neuen Tab ab.
+  const previewMut = useMutation({
+    mutationFn: async (a: Attachment) => {
+      const blob = await downloadAttachment(instanceId, a.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    onError: (e) => show(`Vorschau fehlgeschlagen: ${(e as Error).message}`, "error"),
+  });
+
   return (
     <div className="paper mt-4 sm:mt-6 no-print">
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 sm:gap-4">
@@ -117,7 +135,7 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
           <li className="py-6 text-quiet italic text-sm">Noch keine Anhänge.</li>
         )}
         {items?.map((a: Attachment) => (
-          <li key={a.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto] items-center gap-3 sm:gap-4 py-3">
+          <li key={a.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:gap-4 py-3">
             <FileText size={18} className="text-muted shrink-0" />
             <div className="min-w-0">
               <button
@@ -135,29 +153,43 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => downloadMut.mutate(a)}
-              disabled={downloadMut.isPending}
-              className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft disabled:opacity-60"
-              title="Herunterladen"
-              aria-label="Herunterladen"
-            >
-              <Download size={16} />
-            </button>
-            {!readOnly && (
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {isPdf(a) && (
+                <button
+                  type="button"
+                  onClick={() => previewMut.mutate(a)}
+                  disabled={previewMut.isPending}
+                  className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft disabled:opacity-60"
+                  title="Vorschau"
+                  aria-label="Vorschau"
+                >
+                  <Eye size={16} />
+                </button>
+              )}
               <button
-                onClick={() => {
-                  if (confirm(`Anhang "${a.filename}" wirklich löschen?`)) deleteMut.mutate(a.id);
-                }}
-                disabled={deleteMut.isPending}
-                className="col-start-3 sm:col-auto text-muted hover:text-bad inline-flex items-center justify-center p-1.5 rounded-md hover:bg-bad-soft"
-                title="Löschen"
-                aria-label="Löschen"
+                type="button"
+                onClick={() => downloadMut.mutate(a)}
+                disabled={downloadMut.isPending}
+                className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft disabled:opacity-60"
+                title="Herunterladen"
+                aria-label="Herunterladen"
               >
-                <Trash2 size={16} />
+                <Download size={16} />
               </button>
-            )}
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Anhang "${a.filename}" wirklich löschen?`)) deleteMut.mutate(a.id);
+                  }}
+                  disabled={deleteMut.isPending}
+                  className="text-muted hover:text-bad inline-flex items-center justify-center p-1.5 rounded-md hover:bg-bad-soft"
+                  title="Löschen"
+                  aria-label="Löschen"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>

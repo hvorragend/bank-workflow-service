@@ -12,6 +12,7 @@ const baseTabs: Tab[] = [
   { to: "/antraege",     label: "Anträge" },
   { to: "/archiv",       label: "Archiv" },
   { to: "/definitionen", label: "Definitionen" },
+  { to: "/vertretungen", label: "Vertretungen" },
   { to: "/neu",          label: "Neuer Antrag" },
 ];
 

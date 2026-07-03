@@ -119,6 +119,53 @@ export function getStats(): Promise<InstanceStats> {
   return api<InstanceStats>("/instances/stats");
 }
 
+// --- N-005: Aging-Report (offene Tasks je Rolle) ---
+
+export interface AgingRow {
+  rolle: string;
+  offene_tasks: number;
+  aeltester_eintritt: string | null;
+  alter_tage: number | null;
+}
+
+export function getAging(): Promise<AgingRow[]> {
+  return api<AgingRow[]>("/instances/aging");
+}
+
+// --- N-001: Vertretungen (Self-Service) ---
+
+export interface Delegation {
+  id: string;
+  from_username: string;
+  to_username: string;
+  von_datum: string;
+  bis_datum: string;
+  created_at: string;
+}
+
+export interface CreateDelegationPayload {
+  to_username: string;
+  /** Datumsformat "YYYY-MM-DD". */
+  von_datum: string;
+  /** Datumsformat "YYYY-MM-DD". */
+  bis_datum: string;
+}
+
+export function listDelegations(): Promise<Delegation[]> {
+  return api<Delegation[]>("/delegations");
+}
+
+export function createDelegation(p: CreateDelegationPayload): Promise<Delegation> {
+  return api<Delegation>("/delegations", {
+    method: "POST",
+    body: JSON.stringify(p),
+  });
+}
+
+export function deleteDelegation(id: string): Promise<void> {
+  return api<void>(`/delegations/${id}`, { method: "DELETE" });
+}
+
 // --- Admin: Workflow-Definition + Designer ---
 
 export interface UploadDefinitionPayload {

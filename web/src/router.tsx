@@ -8,6 +8,7 @@ import { NotFoundPage, RouteErrorPage } from "@/pages/ErrorPages";
 import { ArchivePage } from "@/pages/ArchivePage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { DefinitionsPage } from "@/pages/DefinitionsPage";
+import { DelegationsPage } from "@/pages/DelegationsPage";
 import { InstanceDetailPage } from "@/pages/InstanceDetailPage";
 import { InstancesPage } from "@/pages/InstancesPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       { path: "antraege/:id",      element: <InstanceDetailPage /> },
       { path: "archiv",            element: <ArchivePage /> },
       { path: "definitionen",      element: <DefinitionsPage /> },
+      { path: "vertretungen",      element: <DelegationsPage /> },
       { path: "neu",               element: <NewInstancePage /> },
 
       // Admin-Bereich (Permission-basiert; Sidebar in AdminLayout)
