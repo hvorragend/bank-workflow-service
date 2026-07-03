@@ -34,6 +34,7 @@ def send_email(*, to: list[str], subject: str, body: str,
     try:
         if own_session:
             db = SessionLocal()
+        assert db is not None  # ab hier garantiert gesetzt (Typ-Verengung)
         s = get_smtp_settings(db)
         _send_with_settings(s, to=to, subject=subject, body=body)
     finally:

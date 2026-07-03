@@ -85,7 +85,10 @@ def reload_from_db() -> None:
 def stop() -> None:
     global _scheduler, _current_interval
     if _scheduler is not None:
-        _scheduler.shutdown(wait=False)
+        # O-008: Graceful Shutdown — wait=True laesst einen gerade laufenden
+        # Scan sauber zu Ende laufen (kein halber Durchlauf, keine haengende
+        # DB-Transaktion), bevor der Prozess beendet wird.
+        _scheduler.shutdown(wait=True)
         _scheduler = None
         _current_interval = None
 

@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { listDefinitions } from "@/api/endpoints";
+import { StatusBadge } from "@/components/StatusBadge";
 import { countFields } from "@/lib/schema-rules";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import type { WorkflowGraph } from "@/types/api";
 
 /** Holt die User-Tasks aus dem Workflow-DAG in topologischer Reihenfolge.
@@ -99,9 +100,9 @@ export function DefinitionsPage() {
         <p className="eyebrow mb-3">01 · Maskendefinitionen</p>
         <h2 className="page-title">Versionierte Formularvorlagen</h2>
         <p className="page-lead">
-          Jede Definition ist unveraenderlich, sobald sie aktiv ist. Ein Antrag,
-          der gegen eine bestimmte Version erstellt wurde, bleibt fuer immer an
-          genau diese Version gebunden — auch dann noch, wenn die Maske spaeter
+          Jede Definition ist unveränderlich, sobald sie aktiv ist. Ein Antrag,
+          der gegen eine bestimmte Version erstellt wurde, bleibt für immer an
+          genau diese Version gebunden — auch dann noch, wenn die Maske später
           Felder gewinnt oder verliert.
         </p>
       </header>
@@ -120,7 +121,7 @@ export function DefinitionsPage() {
                     <div className="font-mono text-[13px] font-semibold text-ink">{d.typ}</div>
                     <div className="mt-0.5 text-[13px] text-muted">{d.titel}</div>
                   </div>
-                  <span className={`badge badge-${d.status} shrink-0`}>{d.status}</span>
+                  <StatusBadge value={d.status} className="shrink-0" />
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
                   <div>
@@ -129,7 +130,7 @@ export function DefinitionsPage() {
                   </div>
                   <div>
                     <div className="label-mono mb-0.5">Felder</div>
-                    <span className="font-mono">{countFields(d.json_schema)}</span>
+                    <span className="font-mono">{formatNumber(countFields(d.json_schema))}</span>
                   </div>
                   <div className="col-span-2">
                     <div className="label-mono mb-0.5">Genehmigungsweg</div>
@@ -169,14 +170,14 @@ export function DefinitionsPage() {
                       <div className="mt-0.5 text-[13px] text-muted">{d.titel}</div>
                     </Td>
                     <Td><span className="font-mono text-[13px]">{d.version}</span></Td>
-                    <Td><span className={`badge badge-${d.status}`}>{d.status}</span></Td>
+                    <Td><StatusBadge value={d.status} /></Td>
                     <Td>
                       <div className="text-xs text-muted">
                         {workflowSummary(d.workflow_graph)}
                       </div>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-[13px]">{countFields(d.json_schema)}</span>
+                      <span className="font-mono text-[13px]">{formatNumber(countFields(d.json_schema))}</span>
                     </Td>
                   </tr>
                 ))}
@@ -197,7 +198,7 @@ export function DefinitionsPage() {
         <strong>Hinweis zum Versionsmodell:</strong> Beim erstmaligen Start des
         Backends werden zwei Beispiel-Versionen geseeded — <span className="font-mono text-xs bg-paper px-1.5 py-0.5 border border-rule-soft rounded">v1.0.0</span>{" "}
         (retired) und <span className="font-mono text-xs bg-paper px-1.5 py-0.5 border border-rule-soft rounded">v2.0.0</span>{" "}
-        (active). Wechsle zur Antraege-Liste, um zu sehen, dass v1-Antraege das v2-Feld nicht zeigen.
+        (active). Wechseln Sie zur Anträge-Liste, um zu sehen, dass v1-Anträge das v2-Feld nicht zeigen.
       </div>
     </section>
   );
@@ -206,6 +207,7 @@ export function DefinitionsPage() {
 function Th({ children, width, align = "left" }: { children: React.ReactNode; width?: string; align?: "left" | "right" }) {
   return (
     <th
+      scope="col"
       style={{ width }}
       className={cn(
         "label-mono pb-3 pt-5 px-4 sm:px-6",

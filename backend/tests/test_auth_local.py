@@ -37,7 +37,6 @@ def test_me_returns_roles_from_token(client):
 def test_refresh_rotates_cookie_and_issues_new_access(client):
     r = client.post("/auth/login", json={"username": "compliance", "password": TEST_PASSWORD})
     assert r.status_code == 200
-    old_access = r.json()["access_token"]
     refresh_cookie = r.cookies.get("bws_refresh")
     assert refresh_cookie
 

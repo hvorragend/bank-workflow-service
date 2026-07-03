@@ -14,7 +14,6 @@ import pytest
 
 from app.workflow_graph import GraphError, validate_graph
 
-
 KNOWN_ROLES = ["Fachbereichsleiter", "Risikomanagement", "Compliance", "Vorstand"]
 
 
@@ -147,6 +146,29 @@ def test_split_with_missing_join_rejected():
         ],
     }
     with pytest.raises(GraphError, match="endet ohne Join|keinen Parallel-Join"):
+        validate_graph(g, known_roles=KNOWN_ROLES)
+
+
+def test_direct_split_to_join_edge_rejected():
+    """F-029: eine Direktkante Split->Join (ohne User-Task dazwischen) wuerde zur
+    Laufzeit blockieren — der Validator muss sie ablehnen."""
+    g = {
+        "nodes": [
+            {"id": "start", "type": "start"},
+            {"id": "split", "type": "parallel_split"},
+            {"id": "a", "type": "user_task", "label": "x", "rolle": "Risikomanagement"},
+            {"id": "join", "type": "parallel_join"},
+            {"id": "end", "type": "end"},
+        ],
+        "edges": [
+            {"from": "start", "to": "split"},
+            {"from": "split", "to": "a"},
+            {"from": "split", "to": "join"},  # Direktkante Split->Join
+            {"from": "a", "to": "join"},
+            {"from": "join", "to": "end"},
+        ],
+    }
+    with pytest.raises(GraphError, match="Direktkante Split->Join|muss aber 'user_task'"):
         validate_graph(g, known_roles=KNOWN_ROLES)
 
 

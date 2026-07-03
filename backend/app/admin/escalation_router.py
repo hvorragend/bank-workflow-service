@@ -1,7 +1,7 @@
 """Admin-Endpunkte fuer SLA-Eskalations-Scheduler."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -35,12 +35,13 @@ def _to_out(db: Session, cfg: models.EscalationConfig) -> schemas.EscalationConf
         enabled=cfg.enabled,
         default_sla_days=cfg.default_sla_days,
         interval_minutes=cfg.interval_minutes,
+        reminder_percent=cfg.reminder_percent,
         bereichsleiter_role_id=cfg.bereichsleiter_role_id,
         bereichsleiter_role_name=role_name,
         updated_at=cfg.updated_at,
         updated_by=cfg.updated_by,
-        scheduler_running=scheduler._scheduler is not None,  # type: ignore[attr-defined]
-        scheduler_interval_minutes=scheduler._current_interval,  # type: ignore[attr-defined]
+        scheduler_running=scheduler._scheduler is not None,
+        scheduler_interval_minutes=scheduler._current_interval,
     )
 
 
@@ -66,7 +67,7 @@ def set_config(
             raise HTTPException(400, "Rolle unbekannt.")
     for k, v in changes.items():
         setattr(cfg, k, v)
-    cfg.updated_at = datetime.now(timezone.utc)
+    cfg.updated_at = datetime.now(UTC)
     cfg.updated_by = user.username
     audit_admin(db, action="escalation_config.updated", actor=user.username,
                 target_type="EscalationConfig", target_id="1", ip=client_ip(request),

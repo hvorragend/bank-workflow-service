@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getLdap, setLdap, testLdapBind } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function LdapConfigPage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data, isLoading } = useQuery({ queryKey: ["admin", "ldap"], queryFn: getLdap });
+  const { data, isLoading, error } = useQuery({ queryKey: ["admin", "ldap"], queryFn: getLdap });
 
   const [form, setForm] = useState({
     enabled: false, server: "", bind_user_template: "", search_base: "",
@@ -65,7 +66,8 @@ export function LdapConfigPage() {
     onError: (e) => setTestResult(`Fehler: ${(e as Error).message}`),
   });
 
-  if (isLoading || !data) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading || !data) return <LoadingCard label="Lade …" />;
 
   function set<K extends keyof typeof form>(k: K, v: typeof form[K]) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -78,7 +80,7 @@ export function LdapConfigPage() {
         <h2 className="page-title">LDAP-Konfiguration</h2>
         <p className="page-lead">
           Verbindungsparameter, Bind-Template, Such-Basis und Gruppensuche.
-          Service-Account-Passwort wird verschluesselt in der DB abgelegt.
+          Service-Account-Passwort wird verschlüsselt in der DB abgelegt.
         </p>
       </header>
 
@@ -137,28 +139,28 @@ export function LdapConfigPage() {
           TLS erzwingen (verbietet Klartext-Bind)
         </label>
         <div className="lg:col-span-2 grid gap-4 md:grid-cols-2 border-t border-rule pt-4 mt-2">
-          <Field label="Service-Account-DN (fuer Sync)">
+          <Field label="Service-Account-DN (für Sync)">
             <input className="input" value={form.service_account_dn}
                    onChange={(e) => set("service_account_dn", e.target.value)} />
           </Field>
           <Field label={
             data.service_account_password_set
-              ? "Service-Account-Passwort (verschluesselt gesetzt — leer lassen = unveraendert)"
+              ? "Service-Account-Passwort (verschlüsselt gesetzt — leer lassen = unverändert)"
               : "Service-Account-Passwort"
           }>
             <input type="password" className="input"
                    value={password ?? ""}
-                   placeholder={data.service_account_password_set ? "(unveraendert)" : ""}
+                   placeholder={data.service_account_password_set ? "(unverändert)" : ""}
                    onChange={(e) => setPassword(e.target.value === "" ? null : e.target.value)} />
             {data.service_account_password_set && (
               <button type="button" className="hint text-bad mt-1 text-left"
                       onClick={() => setPassword("")}>
-                → Passwort loeschen
+                → Passwort löschen
               </button>
             )}
           </Field>
         </div>
-        <Field label="CA-Cert (PEM, optional, fuer ldaps://)" wide>
+        <Field label="CA-Cert (PEM, optional, für ldaps://)" wide>
           <textarea className="input font-mono text-[12px]" rows={5}
                     value={form.ca_cert_pem}
                     onChange={(e) => set("ca_cert_pem", e.target.value)} />
@@ -172,11 +174,17 @@ export function LdapConfigPage() {
       <div className="paper mt-6">
         <p className="label-mono mb-3">Test-Bind</p>
         <div className="grid gap-3 md:grid-cols-3">
-          <input className="input" placeholder="username" value={testUser}
-                 onChange={(e) => setTestUser(e.target.value)} />
-          <input className="input" type="password" placeholder="password" value={testPw}
-                 onChange={(e) => setTestPw(e.target.value)} />
-          <button className="btn" onClick={() => testMut.mutate()}
+          <label className="flex flex-col gap-1">
+            <span className="label-mono">Benutzername</span>
+            <input id="ldap-test-user" className="input" placeholder="username" value={testUser}
+                   onChange={(e) => setTestUser(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="label-mono">Passwort</span>
+            <input id="ldap-test-pw" className="input" type="password" placeholder="password" value={testPw}
+                   onChange={(e) => setTestPw(e.target.value)} />
+          </label>
+          <button className="btn self-end" onClick={() => testMut.mutate()}
                   disabled={!testUser || !testPw || testMut.isPending}>
             Bind testen
           </button>

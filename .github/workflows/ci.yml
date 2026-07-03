@@ -1,0 +1,95 @@
+name: CI
+
+# Basis-CI (S-001): Backend (pytest, ruff, mypy) und Frontend (tsc, vitest,
+# build). Optionaler Docker-Build-Job als Smoke fuer die Images.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Laufende Jobs bei neuem Push auf denselben Branch/PR abbrechen.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python 3.11)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install (inkl. dev-Extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # Harte Gates: ruff (Lint) und mypy (Typen) muessen sauber sein — der
+      # Alt-Backlog wurde abgearbeitet (app+tests: 0 ruff-Findings, app: 0 mypy-Fehler).
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Typecheck (mypy)
+        run: mypy app
+
+      # Harter Gate: Tests muessen gruen sein.
+      - name: Tests (pytest)
+        run: pytest -q
+
+  frontend:
+    name: Frontend (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck (tsc --noEmit)
+        run: pnpm exec tsc --noEmit
+
+      - name: Tests (vitest)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  docker-build:
+    name: Docker-Build (Smoke)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t bws-backend:ci ./backend
+
+      - name: Build web image
+        run: docker build -t bws-web:ci ./web

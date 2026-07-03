@@ -66,6 +66,10 @@
   .badge-draft,     .badge-in_pruefung     { @apply bg-brand-soft text-warn; }
   .badge-retired,   .badge-entwurf         { @apply bg-neutral-soft text-neutral; }
   .badge-abgelehnt, .badge-zurueckgewiesen { @apply bg-bad-soft text-bad; }
+  /* Auth-Quellen + neutrale Kategorie-Badges */
+  .badge-local      { @apply bg-accent-soft text-accent; }
+  .badge-ldap       { @apply bg-brand-soft text-warn; }
+  .badge-neutral    { @apply bg-neutral-soft text-neutral; }
 
   /* Buttons — Primaer ist das Markenblau, dezenter Hover, runde Ecken */
   .btn {
@@ -136,7 +140,8 @@
 
 /* ---------- Print-Variante (PDF-Export per Browser-Druck) ---------- */
 @media print {
-  header.print\:hidden,
+  /* Die gesamte App-Kopfzeile (Brand + Navigation) gehoert nicht auf den Beleg. */
+  header,
   nav,
   .no-print,
   button,

@@ -20,7 +20,7 @@ const SECTIONS: SidebarSection[] = [
   {
     title: "Workflow",
     items: [
-      { to: "/admin",                  label: "Uebersicht", end: true,
+      { to: "/admin",                  label: "Übersicht", end: true,
         permission: ["admin.users.read", "admin.system.read"] },
       { to: "/admin/definitionen",     label: "Definitionen",
         permission: ["definitions.upload", "definitions.activate", "definitions.retire"] },
@@ -59,7 +59,7 @@ const SECTIONS: SidebarSection[] = [
         permission: "admin.smtp.read" },
       { to: "/admin/notifications/templates", label: "E-Mail-Templates",
         permission: "admin.notifications.templates.read" },
-      { to: "/admin/notifications/role-emails", label: "Rollen-Empfaenger",
+      { to: "/admin/notifications/role-emails", label: "Rollen-Empfänger",
         permission: "admin.notifications.role_emails.read" },
     ],
   },
@@ -72,7 +72,7 @@ const SECTIONS: SidebarSection[] = [
         permission: "admin.api_tokens.read" },
       { to: "/admin/system",           label: "System-Status",
         permission: "admin.system.read" },
-      { to: "/admin/system/rekey",     label: "Schluessel-Rotation",
+      { to: "/admin/system/rekey",     label: "Schlüssel-Rotation",
         permission: "admin.system.rekey" },
     ],
   },

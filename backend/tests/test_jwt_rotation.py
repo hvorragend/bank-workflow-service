@@ -4,19 +4,23 @@ in JWT_SECRETS steht. Neue Tokens werden mit dem neuesten Secret signiert.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import jwt as pyjwt
 import pytest
 
 
 def _build_token(secret: str, *, sub: str = "admin", roles: list[str] | None = None) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": sub,
         "name": f"Test {sub}",
         "email": f"{sub}@test.local",
         "roles": roles or ["Admin"],
+        # /instances verlangt jetzt die Permission instances.read — der
+        # Rotations-Test nutzt den Endpunkt nur als beliebige Auth-geschuetzte
+        # Route, deshalb den noetigen Permission-Claim mitgeben.
+        "permissions": ["instances.read"],
         "auth_source": "local",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=10)).timestamp()),

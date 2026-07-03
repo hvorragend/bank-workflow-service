@@ -9,7 +9,7 @@ Tokens sind selbst-tragend (HS256). Schluesselrotation (Phase 3 / Commit 10):
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import jwt
@@ -30,7 +30,7 @@ def _sign_key() -> str:
 
 def _issue_token(user: AuthenticatedUser, token_type: TokenType, lifetime: timedelta) -> str:
     s = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": user.username,
         "name": user.name,
@@ -84,7 +84,7 @@ def decode_token(token: str, expected_type: TokenType) -> tuple[AuthenticatedUse
         except jwt.InvalidSignatureError as e:
             last_error = e
             continue
-        except jwt.PyJWTError as e:
+        except jwt.PyJWTError:
             # Andere Fehler (z. B. malformed) sofort durchreichen.
             raise
     if payload is None:
@@ -103,5 +103,5 @@ def decode_token(token: str, expected_type: TokenType) -> tuple[AuthenticatedUse
         permissions=list(payload.get("permissions", [])),
         auth_source=payload.get("auth_source", "local"),
     )
-    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
     return user, exp

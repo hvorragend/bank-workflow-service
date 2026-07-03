@@ -7,6 +7,7 @@
  *              steuert Conditional-Rendering
  */
 import type { JsonSchema, UiControl } from "@/types/api";
+import { humanize } from "@/lib/utils";
 
 /** Aufloesen einer Scope-Referenz im JSON-Schema-Baum. */
 export function resolveScope(schema: JsonSchema, scope: string): JsonSchema | undefined {
@@ -50,6 +51,20 @@ export function setByPath(obj: any, path: string[], value: any): void {
     cur = cur[k];
   }
   cur[path[path.length - 1]] = value;
+}
+
+/**
+ * Immutabler Setter: klont nur die Knoten entlang des Pfades statt das gesamte
+ * Objekt bei jedem Tastendruck per JSON.parse(JSON.stringify(...)) zu kopieren.
+ */
+export function setByPathImmutable(obj: any, path: string[], value: any): any {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+  const base = obj && typeof obj === "object" ? obj : {};
+  return {
+    ...base,
+    [head]: rest.length === 0 ? value : setByPathImmutable(base[head], rest, value),
+  };
 }
 
 /** Initialisiert ein leeres Datenobjekt aus dem Schema. Booleans bleiben undefined,
@@ -120,6 +135,28 @@ export function countFields(schema: JsonSchema | undefined): number {
   return n;
 }
 
+/**
+ * Sammelt die Scopes aller sichtbaren Pflichtfelder, die (noch) leer sind.
+ * Basis fuer die Client-Vorvalidierung mit Inline-Fehlern.
+ */
+export function findMissingRequired(
+  uiSchema: { elements: { elements: UiControl[] }[] },
+  jsonSchema: JsonSchema,
+  data: any,
+): string[] {
+  const missing: string[] = [];
+  for (const group of uiSchema.elements ?? []) {
+    for (const ctrl of group.elements ?? []) {
+      if (ctrl.type === "Notice" || !ctrl.scope) continue;
+      if (!isVisible(ctrl, data)) continue;
+      if (!isRequired(ctrl.scope, jsonSchema)) continue;
+      const v = getByPath(data, scopePath(ctrl.scope));
+      if (v === undefined || v === null || v === "") missing.push(ctrl.scope);
+    }
+  }
+  return missing;
+}
+
 /** Backend-Validierungsfehler in lesbares Deutsch uebersetzen. */
 export function humanizeBackendError(detail: string | undefined): string {
   if (!detail) return "Unbekannter Fehler.";
@@ -142,12 +179,4 @@ export function humanizeBackendError(detail: string | undefined): string {
     return `Falscher Datentyp im Feld „${humanize(m[2].split("/").pop() ?? "")}" (erwartet: ${m[1]}).`;
   }
   return detail;
-}
-
-function humanize(s: string): string {
-  return s
-    .replace(/([A-Z])/g, " $1")
-    .replace(/_/g, " ")
-    .replace(/^./, (c) => c.toUpperCase())
-    .trim();
 }

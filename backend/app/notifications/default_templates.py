@@ -55,7 +55,8 @@ DEFAULT_TEMPLATES: dict[str, tuple[str, str]] = {
     "sla_erinnerung": (
         "[Bank Workflow] Erinnerung — wartet seit $age_days Tagen",
         "Erinnerung: der folgende Antrag wartet seit $age_days Tagen auf eine\n"
-        "Entscheidung in der Stage '$stage'. Das halbe SLA ($half_sla Tage) ist erreicht.\n\n"
+        "Entscheidung in der Stage '$stage'. Die SLA-Frist ist zu $schwelle_prozent %\n"
+        "verbraucht ($schwelle_tage von $sla Tagen).\n\n"
         "Titel:         $titel\n"
         "Antragsteller: $antragsteller\n"
         "Direktlink:    $link\n\n"

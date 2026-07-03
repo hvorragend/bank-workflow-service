@@ -6,7 +6,7 @@ liegen seit dem Admin-Panel in der DB — die Fixtures setzen sie dort.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +30,9 @@ def enable_notifications_and_escalation():
         esc.enabled = True
         esc.default_sla_days = 10
         esc.interval_minutes = 60
+        # Vorwarn-Schwelle fuer die "halbe SLA"-Tests explizit auf 50 % — prueft
+        # zugleich die konfigurierbare Schwelle (N-002; Prod-Default ist 80 %).
+        esc.reminder_percent = 50
         db.commit()
     yield
     with SessionLocal() as db:
@@ -56,7 +59,7 @@ def captured_mails():
 
 
 def _create_in_review_instance(client, admin_auth) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=admin_auth).json()
     target = next(d for d in defs if d["typ"] == "AT_8_2_Analyse" and d["status"] == "active")
     daten = {
         "antragsteller": {"name": "T", "abteilung": "IT", "datum": "2026-05-05"},
@@ -84,7 +87,7 @@ def _backdate_stage(instance_id: str, days_ago: float) -> None:
     with SessionLocal() as db:
         inst = db.get(FormInstance, instance_id)
         for active in inst.active_stages:
-            active.eingetreten_am = datetime.now(timezone.utc) - timedelta(days=days_ago)
+            active.eingetreten_am = datetime.now(UTC) - timedelta(days=days_ago)
             active.erinnerung_sent_at = None
             active.eskalation_sent_at = None
         db.commit()
@@ -108,6 +111,35 @@ def test_erinnerung_at_half_sla(client, admin_auth, enable_notifications_and_esc
     counts = scan_once()
     assert counts["erinnerungen"] >= 1
     assert any("Erinnerung" in m["subject"] for m in captured_mails), [m["subject"] for m in captured_mails]
+
+
+def _set_reminder_percent(percent: int) -> None:
+    from app import models
+    from app.database import SessionLocal
+    with SessionLocal() as db:
+        esc = db.get(models.EscalationConfig, 1)
+        esc.reminder_percent = percent
+        db.commit()
+
+
+def test_reminder_threshold_configurable_80(client, admin_auth, enable_notifications_and_escalation, captured_mails):
+    """N-002: bei reminder_percent=80 feuert die Vorwarnung erst bei 80 % der
+    SLA-Frist (nicht schon bei 50 %)."""
+    _set_reminder_percent(80)
+    iid = _create_in_review_instance(client, admin_auth)
+
+    # 7 von 10 Tagen = 70 % -> noch KEINE Erinnerung.
+    _backdate_stage(iid, days_ago=7)
+    captured_mails.clear()
+    from app.escalation.scanner import scan_once
+    assert scan_once()["erinnerungen"] == 0
+
+    # 9 von 10 Tagen = 90 % -> jetzt feuert die Vorwarnung.
+    _backdate_stage(iid, days_ago=9)
+    captured_mails.clear()
+    counts = scan_once()
+    assert counts["erinnerungen"] >= 1
+    assert any("Erinnerung" in m["subject"] for m in captured_mails)
 
 
 @pytest.mark.fachlich(

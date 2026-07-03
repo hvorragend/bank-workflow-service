@@ -15,11 +15,11 @@ export function RekeyPage() {
     <section>
       <header className="page-header">
         <p className="eyebrow mb-3">Admin · System</p>
-        <h2 className="page-title">Schluessel-Rotation</h2>
+        <h2 className="page-title">Schlüssel-Rotation</h2>
         <p className="page-lead">
-          Re-verschluesselt alle Geheimwerte (SMTP-Passwort, LDAP-Service-Account-Passwort)
+          Re-verschlüsselt alle Geheimwerte (SMTP-Passwort, LDAP-Service-Account-Passwort)
           mit dem aktuellen <code>CONFIG_ENCRYPTION_KEY</code>. Voraussetzung:
-          der alte Key liegt voruebergehend als <code>CONFIG_ENCRYPTION_KEY_OLD</code>.
+          der alte Key liegt vorübergehend als <code>CONFIG_ENCRYPTION_KEY_OLD</code>.
         </p>
       </header>
 
@@ -30,9 +30,9 @@ export function RekeyPage() {
           2. Diese Aktion ausfuehren. 3. <code>CONFIG_ENCRYPTION_KEY_OLD</code> entfernen, neu starten.
         </p>
         <button className="btn btn-primary self-start" onClick={() => {
-          if (confirm("Schluessel-Rotation wirklich ausfuehren?")) mut.mutate();
+          if (confirm("Schlüssel-Rotation wirklich ausführen?")) mut.mutate();
         }} disabled={mut.isPending}>
-          Rotation ausfuehren
+          Rotation ausführen
         </button>
       </div>
     </section>

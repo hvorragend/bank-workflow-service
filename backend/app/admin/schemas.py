@@ -9,8 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
-
+from pydantic import BaseModel, Field
 
 # ---------- User ----------
 
@@ -236,6 +235,7 @@ class EscalationConfigOut(BaseModel):
     enabled: bool
     default_sla_days: int
     interval_minutes: int
+    reminder_percent: int
     bereichsleiter_role_id: str | None = None
     bereichsleiter_role_name: str | None = None
     updated_at: datetime
@@ -248,6 +248,8 @@ class EscalationConfigUpdate(BaseModel):
     enabled: bool | None = None
     default_sla_days: int | None = Field(None, ge=1, le=3650)
     interval_minutes: int | None = Field(None, ge=1, le=1440)
+    # Vorwarn-Schwelle in Prozent der SLA-Frist (1–99).
+    reminder_percent: int | None = Field(None, ge=1, le=99)
     bereichsleiter_role_id: str | None = None
 
 

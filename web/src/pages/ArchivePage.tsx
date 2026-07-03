@@ -4,14 +4,23 @@ import { Download, SlidersHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { exportInstancesCsv, listDefinitions, listInstances, type ListInstancesParams } from "@/api/endpoints";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/components/Toaster";
-import { formatDate, humanize } from "@/lib/utils";
-import type { FormInstance } from "@/types/api";
+import { formatDate, instanceTitle } from "@/lib/utils";
 
 const ABGESCHLOSSEN_STATUS = ["genehmigt", "abgelehnt", "zurueckgewiesen"];
 
-function instanceTitle(i: FormInstance): string {
-  return i.daten?.vorhaben?.titel || i.daten?.beschluss?.titel || "(ohne Titel)";
+/**
+ * Wandelt ein <input type=date>-Datum (lokal) in einen ISO-Zeitpunkt um.
+ * Frueher wurde `${d}T00:00:00Z` (UTC) angehaengt — das verschiebt den Filter
+ * je nach Zeitzone um Stunden. Jetzt bauen wir den lokalen Tagesrand und
+ * lassen toISOString() korrekt nach UTC umrechnen (F-037).
+ */
+function localDateStart(d: string): string {
+  return new Date(`${d}T00:00:00`).toISOString();
+}
+function localDateEnd(d: string): string {
+  return new Date(`${d}T23:59:59.999`).toISOString();
 }
 
 export function ArchivePage() {
@@ -23,6 +32,7 @@ export function ArchivePage() {
   const [createdTo, setCreatedTo] = useState<string>("");
   const [sort, setSort] = useState<"created_desc" | "created_asc" | "updated_desc">("created_desc");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const { data: defs } = useQuery({
     queryKey: ["definitions"],
@@ -45,8 +55,8 @@ export function ArchivePage() {
     };
     if (typ) p.typ = typ;
     if (version) p.version = version;
-    if (createdFrom) p.created_from = `${createdFrom}T00:00:00Z`;
-    if (createdTo) p.created_to = `${createdTo}T23:59:59Z`;
+    if (createdFrom) p.created_from = localDateStart(createdFrom);
+    if (createdTo) p.created_to = localDateEnd(createdTo);
     return p;
   }, [typ, version, status, createdFrom, createdTo, sort]);
 
@@ -56,6 +66,7 @@ export function ArchivePage() {
   });
 
   async function onExport() {
+    setExporting(true);
     try {
       const blob = await exportInstancesCsv(params);
       const url = URL.createObjectURL(blob);
@@ -67,6 +78,8 @@ export function ArchivePage() {
       show("CSV-Export gestartet.");
     } catch (e) {
       show(`Export fehlgeschlagen: ${(e as Error).message}`, "error");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -92,9 +105,9 @@ export function ArchivePage() {
           <label className="label-mono mb-1.5 block">Status</label>
           <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Alle abgeschlossenen</option>
-            <option value="genehmigt">genehmigt</option>
-            <option value="abgelehnt">abgelehnt</option>
-            <option value="zurueckgewiesen">zurueckgewiesen</option>
+            <option value="genehmigt">Genehmigt</option>
+            <option value="abgelehnt">Abgelehnt</option>
+            <option value="zurueckgewiesen">Zurückgewiesen</option>
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -111,13 +124,13 @@ export function ArchivePage() {
           <label className="label-mono mb-1.5 block">Sortierung</label>
           <select className="input" value={sort} onChange={(e) => setSort(e.target.value as any)}>
             <option value="created_desc">Erstellt (neueste zuerst)</option>
-            <option value="created_asc">Erstellt (aelteste zuerst)</option>
+            <option value="created_asc">Erstellt (älteste zuerst)</option>
             <option value="updated_desc">Zuletzt bewegt</option>
           </select>
         </div>
       </div>
-      <button onClick={onExport} className="btn btn-ghost mt-6 w-full">
-        <Download size={14} /> Als CSV exportieren
+      <button onClick={onExport} disabled={exporting} className="btn btn-ghost mt-6 w-full">
+        <Download size={14} /> {exporting ? "Exportiere …" : "Als CSV exportieren"}
       </button>
     </>
   );
@@ -126,11 +139,11 @@ export function ArchivePage() {
     <section>
       <header className="page-header">
         <p className="eyebrow mb-3">Archiv</p>
-        <h2 className="page-title">Abgeschlossene Antraege</h2>
+        <h2 className="page-title">Abgeschlossene Anträge</h2>
         <p className="page-lead">
-          Hier finden Sie alle genehmigten, abgelehnten und zurueckgewiesenen
-          Antraege. Filter nach Typ, Version, Datum oder Status — Export als
-          CSV fuer die Revision.
+          Hier finden Sie alle genehmigten, abgelehnten und zurückgewiesenen
+          Anträge. Filter nach Typ, Version, Datum oder Status — Export als
+          CSV für die Revision.
         </p>
       </header>
 
@@ -145,7 +158,7 @@ export function ArchivePage() {
           {filterOpen ? "Filter ausblenden" : "Filter anzeigen"}
         </button>
         <span className="text-[12px] text-quiet">
-          {isLoading ? "Lade …" : `${instances?.length ?? 0} Eintraege`}
+          {isLoading ? "Lade …" : `${instances?.length ?? 0} Einträge`}
         </span>
       </div>
 
@@ -164,7 +177,7 @@ export function ArchivePage() {
         {/* Liste */}
         <div>
           <p className="hidden lg:block text-[12px] text-quiet mb-3">
-            {isLoading ? "Lade …" : `${instances?.length ?? 0} Eintraege`}
+            {isLoading ? "Lade …" : `${instances?.length ?? 0} Einträge`}
           </p>
           {isLoading && (
             <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
@@ -173,7 +186,7 @@ export function ArchivePage() {
           )}
           {instances && instances.length === 0 && (
             <div className="rounded-lg border border-dashed border-rule py-16 sm:py-20 text-center text-muted italic">
-              Keine Eintraege fuer diese Filter.
+              Keine Einträge für diese Filter.
             </div>
           )}
           {instances && instances.length > 0 && (
@@ -202,11 +215,9 @@ export function ArchivePage() {
                       )}
                     </div>
                   </div>
-                  <span className={`badge badge-${i.status} sm:hidden justify-self-end`}>{i.status}</span>
-                  <div className="hidden sm:block font-mono text-[11px] uppercase tracking-wider text-muted whitespace-nowrap">
-                    {humanize(i.status)}
-                  </div>
-                  <span className={`badge badge-${i.status} hidden sm:inline-flex`}>{i.status}</span>
+                  <StatusBadge value={i.status} className="sm:hidden justify-self-end" />
+                  <div className="hidden sm:block" />
+                  <StatusBadge value={i.status} className="hidden sm:inline-flex" />
                 </Link>
               ))}
             </div>

@@ -26,9 +26,9 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError("Anmeldedaten ungueltig.");
+        setError("Anmeldedaten ungültig.");
       } else if (err instanceof ApiError && err.status === 429) {
-        setError("Zu viele Anmeldeversuche. Bitte spaeter erneut versuchen.");
+        setError("Zu viele Anmeldeversuche. Bitte später erneut versuchen.");
       } else {
         setError(err instanceof Error ? err.message : "Anmeldung fehlgeschlagen.");
       }
@@ -63,7 +63,7 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           <div className="mb-8 sm:mb-10 text-center">
             <h1 className="font-display font-semibold text-3xl sm:text-4xl tracking-tightish text-ink">
-              Willkommen zurueck.
+              Willkommen zurück.
             </h1>
             <p className="mt-2 text-sm text-muted">
               Versionierter Antrags- und Genehmigungsservice
@@ -74,7 +74,7 @@ export function LoginPage() {
             <div>
               <p className="eyebrow mb-3">01 · Anmeldung</p>
               <h2 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish">
-                Bei deinem Konto anmelden
+                Bei Ihrem Konto anmelden
               </h2>
             </div>
 
@@ -109,11 +109,11 @@ export function LoginPage() {
             )}
 
             <button type="submit" className="btn w-full" disabled={busy || !username || !password}>
-              {busy ? "Pruefen …" : "Anmelden"}
+              {busy ? "Prüfen …" : "Anmelden"}
             </button>
 
             <p className="text-[12px] text-quiet leading-relaxed">
-              Anmeldung gegen LDAP oder lokales Verzeichnis, abhaengig von der
+              Anmeldung gegen LDAP oder lokales Verzeichnis, abhängig von der
               Server-Konfiguration. Bei Problemen: Administrator kontaktieren.
             </p>
           </form>

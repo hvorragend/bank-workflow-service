@@ -30,8 +30,9 @@ bank-workflow-service/
 │   ├── package.json            JS-Dependencies (verwaltet via pnpm)
 │   ├── nginx.conf              Reverse-Proxy zur Backend-API
 │   └── Dockerfile
-├── deploy/                     Container-Stack (Backend + Web + MailHog)
-│   ├── docker-compose.yml      Komplettstack
+├── deploy/                     Container-Stack (Backend + Web; Mailpit nur Dev)
+│   ├── docker-compose.yml      Prod-Basis-Stack (Backend + Web)
+│   ├── docker-compose.dev.yml  Dev-Override (Mailpit-Mail-Catcher)
 │   ├── dev-up.sh               Stack hochfahren (inkl. Bootstrap der Secrets)
 │   ├── dev-down.sh             Stack stoppen
 │   ├── bootstrap-env.sh        Secrets generieren
@@ -53,14 +54,18 @@ Das Skript
 
 1. erzeugt beim ersten Lauf `deploy/.env` mit echten Zufalls-Secrets
    (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`),
-2. baut und startet Backend, React-Frontend und MailHog,
+2. baut und startet Backend, React-Frontend und (Dev-Override) Mailpit,
 3. wartet auf den Backend-Healthcheck.
 
 Danach:
 
 - **Frontend (React)**: <http://localhost:8000>
 - **OpenAPI / Swagger**: <http://localhost:8000/docs>
-- **MailHog (Mail-UI)**: <http://localhost:8025>
+- **Mailpit (Mail-UI)**: <http://localhost:8025>
+
+Mailpit ist ein reiner Dev-Mail-Catcher aus `deploy/docker-compose.dev.yml`
+und gehört nicht in Produktion. Für den Prod-Betrieb siehe
+[`deploy/README.md`](deploy/README.md) (Abschnitt „Produktions-Härtung").
 
 Stoppen mit `./deploy/dev-down.sh` (Volumes bleiben), oder
 `./deploy/dev-down.sh --volumes` für einen frischen Start.
@@ -174,4 +179,9 @@ Beim ersten Start (leere DB) werden angelegt:
 ## Deployment
 
 Vorgesehen für Single-Host-Deployment auf einer Linux-VM unter Proxmox. Details siehe
-[`deploy/README.md`](deploy/README.md).
+[`deploy/README.md`](deploy/README.md) — insbesondere die Checkliste
+„Produktions-Härtung".
+
+Wichtig: Der Service läuft mit **genau einem** uvicorn-Worker. Der
+SLA-Eskalations-Scheduler (APScheduler) ist ein In-Process-Singleton; mehrere
+Worker würden Eskalationen doppelt auslösen. Nicht horizontal skalieren.

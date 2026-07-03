@@ -4,7 +4,7 @@ version (by id), never to "the type". This is what makes audit-safe schema versi
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -24,7 +24,7 @@ from .database import Base
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _uuid() -> str:
@@ -69,12 +69,20 @@ class FormInstance(Base):
     )
 
     daten: Mapped[dict[str, Any]] = mapped_column(JSON)
-    antragsteller: Mapped[str] = mapped_column(String(100))
-    status: Mapped[str] = mapped_column(String(20), default="entwurf")
-    # entwurf | in_pruefung | genehmigt | abgelehnt | zurueckgewiesen
+    antragsteller: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)
+    # entwurf | in_pruefung | genehmigt | abgelehnt
 
-    erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    abgeschlossen_am: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Durchlauf-Zaehler: wird bei jedem Submit erhoeht. Approvals werden an den
+    # Durchlauf gebunden, in dem sie entstanden sind — damit nach „Zurueckweisen
+    # + Wiedereinreichen" keine veralteten Genehmigungen die Join-Auswertung
+    # verfaelschen (Audit F-004).
+    lauf: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    erstellt_am: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    abgeschlossen_am: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
     definition: Mapped[FormDefinition] = relationship(lazy="joined")
     approvals: Mapped[list[Approval]] = relationship(
@@ -121,6 +129,8 @@ class Approval(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     instance_id: Mapped[str] = mapped_column(ForeignKey("form_instances.id"), index=True)
     stage: Mapped[str] = mapped_column(String(64))  # node_id im neuen DAG-Modell
+    # Durchlauf, in dem diese Entscheidung gefallen ist (siehe FormInstance.lauf).
+    lauf: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     genehmiger: Mapped[str] = mapped_column(String(100))
     rolle: Mapped[str] = mapped_column(String(100))
     entscheidung: Mapped[str] = mapped_column(String(20))
@@ -333,6 +343,9 @@ class EscalationConfig(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     default_sla_days: Mapped[int] = mapped_column(Integer, default=14)
     interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    # Vorwarn-Schwelle in Prozent der SLA-Frist (N-002): ab diesem Anteil der
+    # verbrauchten Frist geht die Erinnerung raus (Default 80 % = kurz vor Bruch).
+    reminder_percent: Mapped[int] = mapped_column(Integer, default=80, server_default="80")
     bereichsleiter_role_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
     )

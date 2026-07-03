@@ -12,7 +12,7 @@ import {
   resolveScope,
   scopeKey,
   scopePath,
-  setByPath,
+  setByPathImmutable,
 } from "@/lib/schema-rules";
 import { humanize } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -25,15 +25,27 @@ interface Props {
   onChange: (next: Record<string, any>) => void;
   /** Wenn true, werden Eingaben deaktiviert (Read-only-Detail-Ansicht). */
   readOnly?: boolean;
+  /** Scopes, die aktuell als fehlerhaft (z. B. leeres Pflichtfeld) markiert sind. */
+  invalidScopes?: Set<string>;
 }
 
-export function DynamicForm({ jsonSchema, uiSchema, data, onChange, readOnly = false }: Props) {
+/** Stabile, DOM-taugliche id aus einem Scope ableiten (fuer label htmlFor). */
+function scopeToId(scope: string): string {
+  return "f_" + scope.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+export function DynamicForm({
+  jsonSchema,
+  uiSchema,
+  data,
+  onChange,
+  readOnly = false,
+  invalidScopes,
+}: Props) {
   function update(path: string[], value: any) {
     if (readOnly) return;
-    // Tiefe Kopie reicht hier — Antragsdaten sind klein.
-    const next = JSON.parse(JSON.stringify(data));
-    setByPath(next, path, value);
-    onChange(next);
+    // Nur die Knoten entlang des Pfades klonen — kein Deep-Clone pro Tastendruck.
+    onChange(setByPathImmutable(data, path, value));
   }
 
   return (
@@ -55,6 +67,7 @@ export function DynamicForm({ jsonSchema, uiSchema, data, onChange, readOnly = f
                 data={data}
                 update={update}
                 readOnly={readOnly}
+                invalid={!!ctrl.scope && !!invalidScopes?.has(ctrl.scope)}
               />
             ))}
           </div>
@@ -70,9 +83,10 @@ interface FieldProps {
   data: Record<string, any>;
   update: (path: string[], value: any) => void;
   readOnly: boolean;
+  invalid: boolean;
 }
 
-function Field({ ctrl, jsonSchema, data, update, readOnly }: FieldProps) {
+function Field({ ctrl, jsonSchema, data, update, readOnly, invalid }: FieldProps) {
   if (!isVisible(ctrl, data)) return null;
 
   if (ctrl.type === "Notice") {
@@ -96,29 +110,71 @@ function Field({ ctrl, jsonSchema, data, update, readOnly }: FieldProps) {
   const value = getByPath(data, path);
   const required = isRequired(ctrl.scope, jsonSchema);
   const isBool = fieldSchema?.type === "boolean";
-  const isMulti = ctrl.options?.multi || (typeof fieldSchema?.minLength === "number" && fieldSchema.minLength > 30);
+  // Textarea-Heuristik: explizit ueber options.multi oder ein grosszuegiges
+  // maxLength — nicht ueber minLength (das sagt nichts ueber die Feldgroesse).
+  const isMulti =
+    ctrl.options?.multi ||
+    (typeof (fieldSchema as any)?.maxLength === "number" && (fieldSchema as any).maxLength > 120);
   const fullSpan = isBool || isMulti;
+  const fieldId = scopeToId(ctrl.scope);
+  const labelText = humanize(scopeKey(ctrl.scope));
+  const errId = `${fieldId}_err`;
+
+  // Booleans als radiogruppe: fieldset/legend statt losem label.
+  if (isBool) {
+    return (
+      <fieldset className="col-span-full flex flex-row items-center gap-3 py-1 border-0 m-0 p-0">
+        <legend className="font-body text-sm text-ink float-left">
+          {labelText}
+          {required && <span className="ml-1 text-accent">*</span>}
+        </legend>
+        <div className="flex gap-6 items-center pt-1">
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="radio"
+              name={fieldId}
+              disabled={readOnly}
+              checked={value === true}
+              onChange={() => update(path, true)}
+            />
+            Ja
+          </label>
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="radio"
+              name={fieldId}
+              disabled={readOnly}
+              checked={value === false}
+              onChange={() => update(path, false)}
+            />
+            Nein
+          </label>
+        </div>
+        {invalid && <span id={errId} className="text-[12px] text-bad ml-2">Bitte auswählen.</span>}
+      </fieldset>
+    );
+  }
 
   return (
-    <div className={cn("flex flex-col", fullSpan && "col-span-full", isBool && "flex-row items-center gap-3 py-1")}>
-      <label
-        className={cn(
-          isBool
-            ? "font-body text-sm text-ink"
-            : "label-mono mb-2",
-        )}
-      >
-        {humanize(scopeKey(ctrl.scope!))}
+    <div className={cn("flex flex-col", fullSpan && "col-span-full")}>
+      <label htmlFor={fieldId} className="label-mono mb-2">
+        {labelText}
         {required && <span className="ml-1 text-accent">*</span>}
       </label>
       <FieldInput
+        id={fieldId}
         fieldSchema={fieldSchema}
         isMulti={!!isMulti}
         value={value}
         onChange={(v) => update(path, v)}
         readOnly={readOnly}
+        invalid={invalid}
+        errId={errId}
       />
-      {fieldSchema?.description && !isBool && (
+      {invalid && (
+        <div id={errId} className="mt-1.5 text-[12px] text-bad">Dieses Pflichtfeld ist erforderlich.</div>
+      )}
+      {fieldSchema?.description && (
         <div className="mt-1.5 text-[12px] text-quiet">{fieldSchema.description}</div>
       )}
     </div>
@@ -126,24 +182,32 @@ function Field({ ctrl, jsonSchema, data, update, readOnly }: FieldProps) {
 }
 
 interface InputProps {
+  id: string;
   fieldSchema: JsonSchema | undefined;
   isMulti: boolean;
   value: any;
   onChange: (v: any) => void;
   readOnly: boolean;
+  invalid: boolean;
+  errId: string;
 }
 
-function FieldInput({ fieldSchema, isMulti, value, onChange, readOnly }: InputProps) {
+function FieldInput({ id, fieldSchema, isMulti, value, onChange, readOnly, invalid, errId }: InputProps) {
+  const invalidProps = invalid
+    ? { "aria-invalid": true as const, "aria-describedby": errId, className: "input border-bad" }
+    : { className: "input" };
+
   if (fieldSchema?.enum) {
     return (
       <select
-        className="input"
+        id={id}
+        {...invalidProps}
         disabled={readOnly}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="" disabled>
-          — bitte waehlen —
+          — bitte wählen —
         </option>
         {fieldSchema.enum.map((opt) => (
           <option key={opt} value={opt}>
@@ -153,35 +217,12 @@ function FieldInput({ fieldSchema, isMulti, value, onChange, readOnly }: InputPr
       </select>
     );
   }
-  if (fieldSchema?.type === "boolean") {
-    return (
-      <div className="flex gap-6 items-center pt-1">
-        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-          <input
-            type="radio"
-            disabled={readOnly}
-            checked={value === true}
-            onChange={() => onChange(true)}
-          />
-          Ja
-        </label>
-        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-          <input
-            type="radio"
-            disabled={readOnly}
-            checked={value === false}
-            onChange={() => onChange(false)}
-          />
-          Nein
-        </label>
-      </div>
-    );
-  }
   if (fieldSchema?.format === "date") {
     return (
       <input
+        id={id}
         type="date"
-        className="input"
+        {...invalidProps}
         disabled={readOnly}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
@@ -191,7 +232,8 @@ function FieldInput({ fieldSchema, isMulti, value, onChange, readOnly }: InputPr
   if (isMulti) {
     return (
       <textarea
-        className="input"
+        id={id}
+        {...invalidProps}
         rows={4}
         disabled={readOnly}
         value={value ?? ""}
@@ -202,18 +244,28 @@ function FieldInput({ fieldSchema, isMulti, value, onChange, readOnly }: InputPr
   if (fieldSchema?.type === "number" || fieldSchema?.type === "integer") {
     return (
       <input
+        id={id}
         type="number"
-        className="input"
+        {...invalidProps}
         disabled={readOnly}
         value={value ?? ""}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === "") {
+            onChange(undefined); // Leerstring != 0
+            return;
+          }
+          const n = Number(raw);
+          onChange(Number.isNaN(n) ? undefined : n);
+        }}
       />
     );
   }
   return (
     <input
+      id={id}
       type="text"
-      className="input"
+      {...invalidProps}
       disabled={readOnly}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}

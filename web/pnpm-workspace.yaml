@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+# pnpm >= 10/11 liest Einstellungen wie onlyBuiltDependencies hier statt aus
+# dem "pnpm"-Feld in package.json. esbuild braucht seinen Postinstall-Build
+# (Platform-Binary), sonst schlaegt vite build fehl.
+onlyBuiltDependencies:
+  - esbuild

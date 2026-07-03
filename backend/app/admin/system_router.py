@@ -53,7 +53,7 @@ def status(
     return schemas.SystemStatus(
         encryption_key_fingerprint=secrets.key_fingerprint(),
         db_ok=db_ok,
-        scheduler_running=scheduler._scheduler is not None,  # type: ignore[attr-defined]
+        scheduler_running=scheduler._scheduler is not None,
         smtp_enabled=smtp.enabled,
         smtp_host=smtp.host,
         ldap_enabled=ldap.enabled,

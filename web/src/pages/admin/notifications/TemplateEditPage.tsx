@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { getTemplate, previewTemplate, updateTemplate } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 const SAMPLE_CTX: Record<string, Record<string, string>> = {
@@ -18,7 +19,7 @@ const SAMPLE_CTX: Record<string, Record<string, string>> = {
   },
   rejected: {
     titel: "Beispielantrag", antragsteller: "alice", rolle: "Compliance",
-    schema_version: "AT_8_2_Analyse/2.0.0", kommentar: "Bitte ergaenzen.",
+    schema_version: "AT_8_2_Analyse/2.0.0", kommentar: "Bitte ergänzen.",
     link: "http://localhost:8080/antraege/abc",
   },
   returned: {
@@ -42,7 +43,7 @@ export function TemplateEditPage() {
   const { key = "" } = useParams();
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "template", key], queryFn: () => getTemplate(key),
   });
   const [subject, setSubject] = useState("");
@@ -73,7 +74,8 @@ export function TemplateEditPage() {
     onSuccess: (r) => { setPreviewSubject(r.subject); setPreviewBody(r.body); },
   });
 
-  if (isLoading || !data) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading || !data) return <LoadingCard label="Lade …" />;
 
   return (
     <section>
@@ -81,7 +83,7 @@ export function TemplateEditPage() {
         <p className="eyebrow mb-3">Admin · Notifications</p>
         <h2 className="page-title">Template: {key}</h2>
         <p className="page-lead">
-          Verfuegbare Variablen: <code>{Object.keys(SAMPLE_CTX[key] ?? {}).map((k) => "$" + k).join(", ")}</code>
+          Verfügbare Variablen: <code>{Object.keys(SAMPLE_CTX[key] ?? {}).map((k) => "$" + k).join(", ")}</code>
         </p>
       </header>
 

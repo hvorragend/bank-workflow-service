@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   deleteRole, getRole, listPermissions, setRolePermissions, updateRole,
 } from "@/api/admin";
+import { QueryError } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function RoleEditPage() {
@@ -13,7 +14,7 @@ export function RoleEditPage() {
   const { show } = useToast();
   const navigate = useNavigate();
 
-  const { data: role, isLoading } = useQuery({
+  const { data: role, isLoading, error } = useQuery({
     queryKey: ["admin", "role", id], queryFn: () => getRole(id),
   });
   const { data: catalog } = useQuery({
@@ -60,12 +61,13 @@ export function RoleEditPage() {
     mutationFn: () => deleteRole(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "roles"] });
-      show("Rolle geloescht.");
+      show("Rolle gelöscht.");
       navigate("/admin/roles");
     },
     onError: (e) => show((e as Error).message, "error"),
   });
 
+  if (error) return <QueryError error={error} />;
   if (isLoading || !role) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
 
   return (
@@ -91,9 +93,9 @@ export function RoleEditPage() {
                   disabled={updateMut.isPending}>Speichern</button>
           {!role.is_system && (
             <button className="btn btn-bad self-start mt-4"
-                    onClick={() => { if (confirm(`Rolle ${role.name} wirklich loeschen?`)) deleteMut.mutate(); }}
+                    onClick={() => { if (confirm(`Rolle ${role.name} wirklich löschen?`)) deleteMut.mutate(); }}
                     disabled={deleteMut.isPending}>
-              Rolle loeschen
+              Rolle löschen
             </button>
           )}
         </div>

@@ -10,7 +10,6 @@ import pytest
 
 from .conftest import approve_all_active, approve_one, auth_header, login_as, reject_one
 
-
 VORSTAND_DATEN = {
     "fachbereich_kopf": {
         "entscheidungstraeger": "Vorstand",
@@ -49,7 +48,7 @@ VORSTAND_DATEN = {
 
 
 def _create_vb_instance(client, headers) -> str:
-    defs = client.get("/definitions").json()
+    defs = client.get("/definitions", headers=headers).json()
     vb = next(d for d in defs if d["typ"] == "Vorstandsbeschluss" and d["status"] == "active")
     r = client.post("/instances", json={"form_definition_id": vb["id"], "daten": VORSTAND_DATEN}, headers=headers)
     assert r.status_code == 201, r.text

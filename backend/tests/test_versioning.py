@@ -14,7 +14,6 @@ import pytest
 
 from .conftest import approve_one
 
-
 VALID_V1_DATA = {
     "antragsteller": {
         "name": "Carsten Volmer",
@@ -40,9 +39,9 @@ VALID_V1_DATA = {
 }
 
 
-def test_seeded_definitions_present(client):
-    # GET /definitions ist oeffentlich lesbar — kein Token noetig.
-    r = client.get("/definitions", params={"typ": "AT_8_2_Analyse"})
+def test_seeded_definitions_present(client, admin_auth):
+    # F-042: GET /definitions erfordert jetzt Authentifizierung (definitions.read).
+    r = client.get("/definitions", params={"typ": "AT_8_2_Analyse"}, headers=admin_auth)
     assert r.status_code == 200
     versions = {d["version"]: d["status"] for d in r.json()}
     assert versions == {"1.0.0": "retired", "2.0.0": "active"}
@@ -53,7 +52,7 @@ def test_seeded_definitions_present(client):
     soll="Antrag gegen v2 ohne doraRelevanz wird mit 422 abgewiesen.",
 )
 def test_create_instance_against_active_v2_requires_dora(client, admin_auth):
-    v2_id = _find_definition(client, "2.0.0")
+    v2_id = _find_definition(client, admin_auth, "2.0.0")
     r = client.post(
         "/instances",
         json={"form_definition_id": v2_id, "daten": VALID_V1_DATA},
@@ -69,8 +68,8 @@ def test_create_instance_against_active_v2_requires_dora(client, admin_auth):
 )
 def test_old_v1_instance_stays_valid_after_v2_activation(client, admin_auth):
     """Der Kerntest: ein v1-Antrag bleibt nutzbar, auch wenn v2 inzwischen aktiv ist."""
-    v1_id = _find_definition(client, "1.0.0")
-    v2_id = _find_definition(client, "2.0.0")
+    v1_id = _find_definition(client, admin_auth, "1.0.0")
+    v2_id = _find_definition(client, admin_auth, "2.0.0")
     _set_status(client, admin_auth, v1_id, deactivate_id=v2_id)
 
     r = client.post(
@@ -96,7 +95,7 @@ def test_old_v1_instance_stays_valid_after_v2_activation(client, admin_auth):
     soll="Vollstaendige Approval-Kette laeuft durch alle drei Stages und endet mit status=genehmigt + 3 Audit-Eintraegen.",
 )
 def test_full_approval_chain(client, admin_auth):
-    v2_id = _find_definition(client, "2.0.0")
+    v2_id = _find_definition(client, admin_auth, "2.0.0")
     daten = {**VALID_V1_DATA}
     daten["wesentlichkeitskriterien"] = {
         **daten["wesentlichkeitskriterien"],
@@ -127,8 +126,8 @@ def test_full_approval_chain(client, admin_auth):
 
 # --- helpers ---
 
-def _find_definition(client, version: str) -> str:
-    r = client.get("/definitions", params={"typ": "AT_8_2_Analyse"})
+def _find_definition(client, admin_auth, version: str) -> str:
+    r = client.get("/definitions", params={"typ": "AT_8_2_Analyse"}, headers=admin_auth)
     return next(d["id"] for d in r.json() if d["version"] == version)
 
 

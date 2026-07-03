@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getSmtp, setSmtp, testSmtp } from "@/api/admin";
+import { QueryError, LoadingCard } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function SmtpConfigPage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data, isLoading } = useQuery({ queryKey: ["admin", "smtp"], queryFn: getSmtp });
+  const { data, isLoading, error } = useQuery({ queryKey: ["admin", "smtp"], queryFn: getSmtp });
 
   const [form, setForm] = useState({
     enabled: false, host: "localhost", port: 1025, use_tls: false,
@@ -42,7 +43,8 @@ export function SmtpConfigPage() {
     onError: (e) => show((e as Error).message, "error"),
   });
 
-  if (isLoading || !data) return <div className="paper py-10 text-center text-quiet">Lade …</div>;
+  if (error) return <QueryError error={error} />;
+  if (isLoading || !data) return <LoadingCard label="Lade …" />;
 
   function set<K extends keyof typeof form>(k: K, v: typeof form[K]) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -54,8 +56,8 @@ export function SmtpConfigPage() {
         <p className="eyebrow mb-3">Admin · Notifications</p>
         <h2 className="page-title">SMTP-Konfiguration</h2>
         <p className="page-lead">
-          Hostname, Port, TLS und Authentifizierung. Passwort liegt verschluesselt
-          in der DB — beim Speichern „leer lassen" bedeutet „unveraendert".
+          Hostname, Port, TLS und Authentifizierung. Passwort liegt verschlüsselt
+          in der DB — beim Speichern „leer lassen" bedeutet „unverändert".
         </p>
       </header>
 
@@ -76,19 +78,19 @@ export function SmtpConfigPage() {
         </label>
         <Field label="Username"><input className="input" value={form.username}
                                         onChange={(e) => set("username", e.target.value)} /></Field>
-        <Field label={data.password_set ? "Passwort (gesetzt — leer = unveraendert)" : "Passwort"}>
+        <Field label={data.password_set ? "Passwort (gesetzt — leer = unverändert)" : "Passwort"}>
           <input type="password" className="input"
                  value={password ?? ""}
-                 placeholder={data.password_set ? "(unveraendert)" : ""}
+                 placeholder={data.password_set ? "(unverändert)" : ""}
                  onChange={(e) => setPassword(e.target.value === "" ? null : e.target.value)} />
           {data.password_set && (
             <button type="button" className="hint text-bad mt-1 text-left"
-                    onClick={() => setPassword("")}>→ Passwort loeschen</button>
+                    onClick={() => setPassword("")}>→ Passwort löschen</button>
           )}
         </Field>
         <Field label="Absender (From-Adresse)"><input className="input" value={form.mail_from}
                                                        onChange={(e) => set("mail_from", e.target.value)} /></Field>
-        <Field label="App-URL (fuer Links in Mails)"><input className="input" value={form.app_url}
+        <Field label="App-URL (für Links in Mails)"><input className="input" value={form.app_url}
                                                               onChange={(e) => set("app_url", e.target.value)} /></Field>
         <button type="submit" className="btn btn-primary lg:col-span-2 self-start" disabled={mut.isPending}>
           Speichern
@@ -98,7 +100,7 @@ export function SmtpConfigPage() {
       <div className="paper mt-6">
         <p className="label-mono mb-3">Test-Mail senden</p>
         <div className="grid gap-3 md:grid-cols-[2fr_auto]">
-          <input className="input" placeholder="empfaenger@example.de"
+          <input className="input" placeholder="empfänger@example.de"
                  value={testTo} onChange={(e) => setTestTo(e.target.value)} />
           <button className="btn" disabled={!testTo || testMut.isPending} onClick={() => testMut.mutate()}>
             Senden

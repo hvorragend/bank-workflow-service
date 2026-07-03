@@ -8,7 +8,6 @@ import pytest
 
 from app.admin.bpmn import BpmnImportError, parse_bpmn_to_graph
 
-
 BPMN_NS = 'xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"'
 CAMUNDA_NS = 'xmlns:camunda="http://camunda.org/schema/1.0/bpmn"'
 

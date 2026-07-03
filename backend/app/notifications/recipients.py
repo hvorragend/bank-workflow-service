@@ -1,4 +1,10 @@
-"""Backwards-Kompat-Wrapper. Echte Logik liegt in config_service.role_emails."""
+"""Backwards-Kompat-Wrapper. Echte Logik liegt in config_service.role_emails.
+
+O-010: Dieses Modul wird vom Produktivcode nicht mehr aufgerufen (nur noch von
+tests/test_notifications.py::test_emails_for_role_uses_db_users). Es wird
+bewusst NICHT entfernt, um die oeffentliche Kompat-Signatur und den Test stabil
+zu halten — reines Aufraeumen waere hier hoeheres Risiko als Nutzen.
+"""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

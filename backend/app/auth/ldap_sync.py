@@ -18,11 +18,13 @@ import tempfile
 import threading
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from ldap3 import ALL, SUBTREE, Connection, Server, Tls
 from ldap3.core.exceptions import LDAPException
+from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -73,7 +75,7 @@ def start_sync_job(*, dry_run: bool = False, actor: str = "system") -> SyncJob:
 
 def _run_sync(job: SyncJob, actor: str) -> None:
     job.status = "running"
-    job.started_at = datetime.now(timezone.utc)
+    job.started_at = datetime.now(UTC)
     try:
         with SessionLocal() as db:
             cfg = get_ldap_settings(db)
@@ -87,71 +89,78 @@ def _run_sync(job: SyncJob, actor: str) -> None:
         job.error = str(e)
         job.status = "error"
     finally:
-        job.finished_at = datetime.now(timezone.utc)
+        job.finished_at = datetime.now(UTC)
 
 
 def _do_sync(db: Session, cfg: LdapSettings, job: SyncJob) -> dict[str, int]:
     counts = {"scanned": 0, "created": 0, "updated": 0, "deactivated": 0, "errors": 0}
-    tls = _build_tls(cfg)
-    server = Server(cfg.server, get_info=ALL, tls=tls, connect_timeout=cfg.timeout_seconds)
-    with Connection(
-        server,
-        user=cfg.service_account_dn,
-        password=cfg.service_account_password or "",
-        auto_bind=True,
-    ) as conn:
-        # Alle User-Eintraege im search_base.
-        if not cfg.search_base:
-            raise RuntimeError("search_base ist leer — kein Sync moeglich.")
-        page_size = 500
-        gen = conn.extend.standard.paged_search(
-            search_base=cfg.search_base,
-            search_filter=cfg.user_filter.replace("{username}", "*") or "(objectClass=person)",
-            search_scope=SUBTREE,
-            attributes=[cfg.attr_username, cfg.attr_display_name, cfg.attr_email],
-            paged_size=page_size,
-            generator=True,
-        )
-        role_id_by_name: dict[str, str] = {
-            r.name: r.id for r in db.scalars(select(models.Role)).all()
-        }
-        for entry in gen:
-            if entry.get("type") != "searchResEntry":
-                continue
-            counts["scanned"] += 1
-            attrs = entry.get("attributes", {})
-            username = _attr_str(attrs, cfg.attr_username)
-            if not username:
-                continue
-            display_name = _attr_str(attrs, cfg.attr_display_name) or username
-            email = _attr_str(attrs, cfg.attr_email)
-            user_dn = entry.get("dn") or ""
-            try:
-                # Gruppen pro User abfragen
-                group_dns = _lookup_user_groups(conn, cfg, user_dn)
-                role_names: set[str] = set()
-                for dn in group_dns:
-                    for r in cfg.role_mapping.get(dn, []):
-                        role_names.add(r)
-                if job.dry_run:
+    tls, ca_path = _build_tls(cfg)
+    try:
+        server = Server(cfg.server, get_info=ALL, tls=tls, connect_timeout=cfg.timeout_seconds)
+        with Connection(
+            server,
+            user=cfg.service_account_dn,
+            password=cfg.service_account_password or "",
+            auto_bind=True,
+        ) as conn:
+            # Alle User-Eintraege im search_base.
+            if not cfg.search_base:
+                raise RuntimeError("search_base ist leer — kein Sync moeglich.")
+            page_size = 500
+            gen = conn.extend.standard.paged_search(
+                search_base=cfg.search_base,
+                search_filter=cfg.user_filter.replace("{username}", "*") or "(objectClass=person)",
+                search_scope=SUBTREE,
+                attributes=[cfg.attr_username, cfg.attr_display_name, cfg.attr_email],
+                paged_size=page_size,
+                generator=True,
+            )
+            role_id_by_name: dict[str, str] = {
+                r.name: r.id for r in db.scalars(select(models.Role)).all()
+            }
+            for entry in gen:
+                if entry.get("type") != "searchResEntry":
                     continue
-                created = _upsert_user(db, role_id_by_name, username, display_name, email,
-                                       user_dn, sorted(role_names))
-                if created:
-                    counts["created"] += 1
-                else:
-                    counts["updated"] += 1
-            except Exception as e:  # noqa: BLE001
-                log.warning("Fehler beim Sync von %s: %s", username, e)
-                counts["errors"] += 1
-        if not job.dry_run:
-            db.commit()
-    return counts
+                counts["scanned"] += 1
+                attrs = entry.get("attributes", {})
+                username = _attr_str(attrs, cfg.attr_username)
+                if not username:
+                    continue
+                display_name = _attr_str(attrs, cfg.attr_display_name) or username
+                email = _attr_str(attrs, cfg.attr_email)
+                user_dn = entry.get("dn") or ""
+                try:
+                    # Gruppen pro User abfragen
+                    group_dns = _lookup_user_groups(conn, cfg, user_dn)
+                    role_names: set[str] = set()
+                    for dn in group_dns:
+                        for r in cfg.role_mapping.get(dn, []):
+                            role_names.add(r)
+                    if job.dry_run:
+                        continue
+                    created = _upsert_user(db, role_id_by_name, username, display_name, email,
+                                           user_dn, sorted(role_names))
+                    if created:
+                        counts["created"] += 1
+                    else:
+                        counts["updated"] += 1
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Fehler beim Sync von %s: %s", username, e)
+                    counts["errors"] += 1
+            if not job.dry_run:
+                db.commit()
+        return counts
+    finally:
+        # F-043: CA-PEM-Tempdatei nach dem Sync-Bind wieder entfernen.
+        if ca_path:
+            Path(ca_path).unlink(missing_ok=True)
 
 
-def _build_tls(cfg: LdapSettings) -> Tls | None:
+def _build_tls(cfg: LdapSettings) -> tuple[Tls | None, str | None]:
+    """Wie in ldap_bind: gibt zusaetzlich den Pfad der ggf. erzeugten CA-PEM-
+    Tempdatei zurueck, damit der Aufrufer sie nach Gebrauch loeschen kann (F-043)."""
     if not cfg.server.startswith("ldaps://"):
-        return None
+        return None, None
     if cfg.ca_cert_pem:
         f = tempfile.NamedTemporaryFile(prefix="bws-ldap-ca-", suffix=".pem", delete=False)
         try:
@@ -160,14 +169,16 @@ def _build_tls(cfg: LdapSettings) -> Tls | None:
             ca_path = f.name
         finally:
             f.close()
-        return Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=ca_path)
-    return Tls(validate=ssl.CERT_REQUIRED)
+        return Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=ca_path), ca_path
+    return Tls(validate=ssl.CERT_REQUIRED), None
 
 
 def _lookup_user_groups(conn: Connection, cfg: LdapSettings, user_dn: str) -> list[str]:
     if not cfg.group_search_base or not cfg.group_filter:
         return []
-    flt = cfg.group_filter.format(user_dn=user_dn)
+    # F-021: user_dn stammt aus dem LDAP-Eintrag, wird aber in einen Suchfilter
+    # eingesetzt -> escape_filter_chars gegen Filter-Injection.
+    flt = cfg.group_filter.format(user_dn=escape_filter_chars(user_dn))
     try:
         conn.search(cfg.group_search_base, flt, search_scope=SUBTREE, attributes=["dn"])
     except LDAPException:

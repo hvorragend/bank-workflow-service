@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { listRoleEmails, listRoles, setRoleEmails } from "@/api/admin";
+import { QueryError } from "@/components/QueryStates";
 import { useToast } from "@/components/Toaster";
 
 export function RoleEmailsPage() {
   const qc = useQueryClient();
   const { show } = useToast();
-  const { data: emails } = useQuery({
+  const { data: emails, error } = useQuery({
     queryKey: ["admin", "role-emails"], queryFn: listRoleEmails,
   });
   const { data: roles } = useQuery({ queryKey: ["admin", "roles"], queryFn: listRoles });
@@ -28,7 +29,7 @@ export function RoleEmailsPage() {
       setRoleEmails(roleId, list),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "role-emails"] });
-      show("Empfaenger gespeichert.");
+      show("Empfänger gespeichert.");
     },
     onError: (e) => show((e as Error).message, "error"),
   });
@@ -37,13 +38,14 @@ export function RoleEmailsPage() {
     <section>
       <header className="page-header">
         <p className="eyebrow mb-3">Admin · Notifications</p>
-        <h2 className="page-title">Rollen-Empfaenger</h2>
+        <h2 className="page-title">Rollen-Empfänger</h2>
         <p className="page-lead">
-          Zusaetzliche Mail-Adressen pro Rolle (Gruppenpostfaecher). Werden zu den
-          Adressen aktiver User mit derselben Rolle hinzugefuegt — eine Adresse
+          Zusätzliche Mail-Adressen pro Rolle (Gruppenpostfächer). Werden zu den
+          Adressen aktiver User mit derselben Rolle hinzugefügt — eine Adresse
           pro Zeile.
         </p>
       </header>
+      {error && <QueryError error={error} />}
       <div className="grid gap-4 md:grid-cols-2">
         {roles?.map((r) => (
           <div key={r.id} className="paper">

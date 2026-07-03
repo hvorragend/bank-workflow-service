@@ -5,12 +5,9 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 
 import { getStats, listInstances } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthContext";
-import { cn, formatDate, humanize } from "@/lib/utils";
+import { StatusBadge } from "@/components/StatusBadge";
+import { cn, formatDate, formatNumber, humanize, instanceTitle } from "@/lib/utils";
 import type { FormInstance } from "@/types/api";
-
-function instanceTitle(i: FormInstance): string {
-  return i.daten?.vorhaben?.titel || i.daten?.beschluss?.titel || "(ohne Titel)";
-}
 
 export function DashboardPage() {
   const { state } = useAuth();
@@ -54,23 +51,23 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10">
         <Tile
           label="Wartet auf mich"
-          value={stats?.waiting_for_me ?? "—"}
+          value={stats ? formatNumber(stats.waiting_for_me) : "—"}
           icon={<Inbox size={18} />}
           accent
         />
         <Tile
-          label="In Pruefung gesamt"
-          value={stats?.status_counts?.in_pruefung ?? 0}
+          label="In Prüfung gesamt"
+          value={formatNumber(stats?.status_counts?.in_pruefung ?? 0)}
           icon={<Clock size={18} />}
         />
         <Tile
           label="Genehmigt (gesamt)"
-          value={stats?.status_counts?.genehmigt ?? 0}
+          value={formatNumber(stats?.status_counts?.genehmigt ?? 0)}
           icon={<FileCheck2 size={18} />}
         />
         <Tile
           label="Letzte 7 Tage: erstellt"
-          value={stats?.last7_created ?? 0}
+          value={formatNumber(stats?.last7_created ?? 0)}
           icon={<FileX2 size={18} />}
         />
       </div>
@@ -78,23 +75,23 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <ListCard
           title="Wartet auf meine Entscheidung"
-          empty="Keine Antraege benoetigen aktuell Ihre Entscheidung."
+          empty="Keine Anträge benötigen aktuell Ihre Entscheidung."
           items={pending}
-          linkLabel="Alle offenen Antraege"
+          linkLabel="Alle offenen Anträge"
           linkTo="/antraege?wartet_auf_mich=true"
         />
         <ListCard
-          title="Eigene Antraege"
-          empty="Sie haben noch keine eigenen Antraege gestellt."
+          title="Eigene Anträge"
+          empty="Sie haben noch keine eigenen Anträge gestellt."
           items={own}
           linkLabel="Eigene anzeigen"
           linkTo="/antraege?mein=true"
         />
         <ListCard
           title="Zuletzt bewegt"
-          empty="Keine Aktivitaet in den letzten Tagen."
+          empty="Keine Aktivität in den letzten Tagen."
           items={recent}
-          linkLabel="Alle Antraege"
+          linkLabel="Alle Anträge"
           linkTo="/antraege"
         />
       </div>
@@ -103,10 +100,10 @@ export function DashboardPage() {
       {chartData.length > 0 && (
         <div className="paper mt-8 sm:mt-10">
           <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0">
-            Verteilung offener Antraege je Stage
+            Verteilung offener Anträge je Stage
           </h3>
           <p className="text-[13px] text-muted mt-1 mb-5 sm:mb-6">
-            Wo stehen die in_pruefung-Antraege gerade in der Genehmigungskette?
+            Wo stehen die Anträge in Prüfung gerade in der Genehmigungskette?
           </p>
           <div className="h-56 sm:h-64 -mx-2 sm:mx-0">
             <ResponsiveContainer>
@@ -132,7 +129,7 @@ export function DashboardPage() {
 
       {stats?.avg_decision_days != null && (
         <div className="hint hint-info mt-6">
-          Durchschnittliche Bearbeitungsdauer (genehmigte Antraege):{" "}
+          Durchschnittliche Bearbeitungsdauer (genehmigte Anträge):{" "}
           <strong className="text-ink font-semibold">
             {stats.avg_decision_days.toFixed(1)} Tage
           </strong>
@@ -188,7 +185,7 @@ function ListCard({ title, empty, items, linkLabel, linkTo }: ListCardProps) {
                 <div className="text-[14px] text-ink leading-snug font-medium">{instanceTitle(i)}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-quiet">
                   <span className="text-accent">{i.schema_version}</span>
-                  <span className={`badge badge-${i.status}`}>{i.status}</span>
+                  <StatusBadge value={i.status} />
                   <span>{formatDate(i.erstellt_am)}</span>
                 </div>
               </Link>

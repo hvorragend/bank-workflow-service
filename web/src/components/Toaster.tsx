@@ -23,7 +23,9 @@ export function ToasterProvider({ children }: { children: ReactNode }) {
   const show = useCallback((message: string, variant: Variant = "success") => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, message, variant }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+    // Fehler laenger stehen lassen (mehr Lesezeit), Erfolg/Info kuerzer.
+    const duration = variant === "error" ? 8000 : 4500;
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), duration);
   }, []);
 
   function dismiss(id: number) {

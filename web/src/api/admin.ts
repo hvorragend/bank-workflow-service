@@ -305,6 +305,7 @@ export interface EscalationConfig {
   enabled: boolean;
   default_sla_days: number;
   interval_minutes: number;
+  reminder_percent: number;
   bereichsleiter_role_id: string | null;
   bereichsleiter_role_name: string | null;
   updated_at: string;
@@ -317,6 +318,7 @@ export type EscalationConfigUpdate = Partial<{
   enabled: boolean;
   default_sla_days: number;
   interval_minutes: number;
+  reminder_percent: number;
   bereichsleiter_role_id: string | null;
 }>;
 

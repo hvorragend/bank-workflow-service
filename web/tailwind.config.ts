@@ -21,7 +21,7 @@ export default {
         "rule-soft":  "hsl(214 20% 93%)",
         ink:          "hsl(215 28% 14%)",
         muted:        "hsl(215 14% 38%)",
-        quiet:        "hsl(215 12% 56%)",
+        quiet:        "hsl(215 12% 45%)",  // abgedunkelt fuer WCAG-Kontrast (U-009)
 
         // Markenblau (Volksbanken-Stil)
         accent:        "hsl(212 100% 21%)",  // #003269

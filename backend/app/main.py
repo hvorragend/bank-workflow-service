@@ -11,8 +11,10 @@ ist (statt mit leerer Liste zu starten).
 from __future__ import annotations
 
 import json
+import logging
+import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,23 @@ from .reporting import router as reporting_router
 from .routers import attachments, definitions, instances
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
+
+log = logging.getLogger("app")
+
+
+def _configure_logging() -> None:
+    """O-007: schlankes, zentrales Logging beim App-Start. Level ueber die
+    Env-Variable LOG_LEVEL steuerbar (Default INFO), einheitliches Format mit
+    Zeitstempel. Bewusst kein JSON-Zwang — nur damit INFO-Logs (Scheduler,
+    Notifications, Auth) ueberhaupt sichtbar werden."""
+    level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        force=True,  # ueberschreibt ein evtl. von uvicorn/gunicorn gesetztes Basis-Setup
+    )
 
 
 # ---------- Seed-Hilfen ----------
@@ -117,7 +136,7 @@ def _seed_definitions(db) -> dict[str, models.FormDefinition]:
 
 def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
     """Drei Demo-Antraege in unterschiedlichen Stadien — damit die Demo nicht leer wirkt."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1) AT-8.2-Antrag, vollstaendig genehmigt (alle drei Stages)
     at82 = models.FormInstance(
@@ -313,16 +332,28 @@ def _seed_demo_instances(db, defs: dict[str, models.FormDefinition]) -> None:
 
 
 def _seed(db) -> None:
-    """Initial-Seed: Definitionen + drei Beispiel-Antraege, falls die DB leer ist."""
+    """Initial-Seed, falls die DB leer ist.
+
+    Die Schema-Definitionen (Masken-Katalog) werden immer angelegt — ohne sie
+    ist die App nicht bedienbar. Die drei fiktiven Demo-Antraege sind reine
+    Entwicklungs-/Demo-Daten und werden nur bei ausdruecklichem Opt-in
+    (SEED_DEMO_DATA=1) geseedet — in einem revisionsrelevanten Prod-System
+    haben erfundene, „genehmigte" Antraege nichts zu suchen.
+    """
     if db.scalar(select(models.FormDefinition).limit(1)):
         return
     defs = _seed_definitions(db)
-    _seed_demo_instances(db, defs)
+    if os.getenv("SEED_DEMO_DATA", "").strip().lower() in {"1", "true", "yes"}:
+        _seed_demo_instances(db, defs)
     db.commit()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 0. Zentrales Logging konfigurieren, bevor irgendetwas loggt.
+    _configure_logging()
+    log.info("Bank Workflow Service startet (LOG_LEVEL=%s).", os.getenv("LOG_LEVEL", "INFO"))
+
     # 1. Verschluesselung verfuegbar? Sonst hier sofort scheitern.
     from . import bootstrap
     bootstrap.assert_encryption_available()
@@ -363,10 +394,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Permissive CORS fuer die lokale Demo. Produktiv: auf Frontend-Origin einschraenken.
+# CORS: per CORS_ALLOW_ORIGINS (komma-separiert) konfigurierbar. Default ist die
+# lokale Frontend-Origin — NICHT mehr Wildcard, damit Produktion nicht
+# zwangslaeufig offen laeuft. Wildcard nur, wenn explizit CORS_ALLOW_ORIGINS=*
+# gesetzt wird (bewusste Entscheidung des Operators).
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = ["http://localhost:8000", "http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -375,7 +414,7 @@ app.add_middleware(
 from .auth.rate_limit import limiter  # noqa: E402
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, auth_router.custom_rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 app.include_router(auth_router.router)
 app.include_router(definitions.router)
@@ -408,6 +447,9 @@ def ready() -> dict:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as e:
-        from fastapi import HTTPException, status as st
-        raise HTTPException(status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}")
+        from fastapi import HTTPException
+        from fastapi import status as st
+        raise HTTPException(
+            status_code=st.HTTP_503_SERVICE_UNAVAILABLE, detail=f"DB nicht erreichbar: {e}"
+        ) from e
     return {"status": "ready"}

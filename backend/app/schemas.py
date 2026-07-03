@@ -8,7 +8,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------- FormDefinition ----------
 
 class FormDefinitionCreate(BaseModel):
@@ -47,6 +46,11 @@ class FormInstanceCreate(BaseModel):
     # Backwards-Compat: alte Clients duerfen weiter mitsenden — der Server ueberschreibt
     # den Wert aber mit dem Username aus dem JWT.
     antragsteller: str = ""
+
+
+class FormInstanceUpdate(BaseModel):
+    """Aenderung der Antragsdaten eines Entwurfs (PATCH /instances/{id})."""
+    daten: dict[str, Any]
 
 
 class ApprovalOut(BaseModel):

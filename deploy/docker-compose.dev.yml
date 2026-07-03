@@ -1,0 +1,30 @@
+# Dev-Override fuer den Bank Workflow Service (S-003).
+#
+# Enthaelt ausschliesslich Dinge, die NUR fuer die lokale Entwicklung / fuer
+# Mail-Tests gedacht sind und in Produktion NICHTS zu suchen haben. Der
+# Haupt-Stack (docker-compose.yml) verdrahtet bewusst KEINEN Mail-Catcher als
+# Prod-SMTP.
+#
+# Start inkl. Mailpit:
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d --build
+#
+# Mailpit statt MailHog: aktiv gepflegt, kleineres Image, gleicher Zweck.
+# Web-UI:  http://localhost:8025      SMTP:  localhost:1025
+#
+# SMTP im Admin-Panel auf host=mailpit, port=1025 stellen (beide Container
+# liegen im selben Compose-Netz).
+
+services:
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: bws-mailpit
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      # An 127.0.0.1 gebunden — kein Mail-Catcher offen im Netz.
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:8025:8025"   # Web-UI
+    restart: unless-stopped

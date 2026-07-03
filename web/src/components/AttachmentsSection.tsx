@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Paperclip, Trash2, Upload } from "lucide-react";
 
 import {
-  attachmentDownloadUrl,
   deleteAttachment,
+  downloadAttachment,
   listAttachments,
   uploadAttachment,
   type Attachment,
@@ -44,9 +44,9 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
     mutationFn: (attId: string) => deleteAttachment(instanceId, attId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["attachments", instanceId] });
-      show("Anhang geloescht.");
+      show("Anhang gelöscht.");
     },
-    onError: (e) => show(`Loeschen fehlgeschlagen: ${(e as Error).message}`, "error"),
+    onError: (e) => show(`Löschen fehlgeschlagen: ${(e as Error).message}`, "error"),
   });
 
   function handleFiles(files: FileList | null) {
@@ -54,12 +54,25 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
     Array.from(files).forEach((f) => uploadMut.mutate(f));
   }
 
+  const downloadMut = useMutation({
+    mutationFn: async (a: Attachment) => {
+      const blob = await downloadAttachment(instanceId, a.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = a.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (e) => show(`Download fehlgeschlagen: ${(e as Error).message}`, "error"),
+  });
+
   return (
     <div className="paper mt-4 sm:mt-6 no-print">
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 sm:gap-4">
         <div>
           <h3 className="font-display font-semibold text-xl sm:text-2xl tracking-tightish m-0 inline-flex items-center gap-2">
-            <Paperclip size={20} /> Anhaenge
+            <Paperclip size={20} /> Anhänge
           </h3>
           <p className="text-[13px] text-muted mt-1">
             Bis zu 25 MB pro Datei. Erlaubt: {ALLOWED_EXTS.join(", ")}.
@@ -67,7 +80,7 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
         </div>
         {!readOnly && (
           <button className="btn whitespace-nowrap self-start" onClick={() => fileInput.current?.click()}>
-            <Upload size={14} /> Datei hinzufuegen
+            <Upload size={14} /> Datei hinzufügen
           </button>
         )}
         <input
@@ -94,26 +107,27 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
             handleFiles(e.dataTransfer.files);
           }}
         >
-          Dateien hier ablegen oder oben auf „Datei hinzufuegen" klicken.
+          Dateien hier ablegen oder oben auf „Datei hinzufügen" klicken.
         </div>
       )}
 
       <ul className="mt-5 divide-y divide-rule-soft">
         {isLoading && <li className="py-4 text-quiet italic text-sm">Lade …</li>}
         {items && items.length === 0 && (
-          <li className="py-6 text-quiet italic text-sm">Noch keine Anhaenge.</li>
+          <li className="py-6 text-quiet italic text-sm">Noch keine Anhänge.</li>
         )}
         {items?.map((a: Attachment) => (
           <li key={a.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto] items-center gap-3 sm:gap-4 py-3">
             <FileText size={18} className="text-muted shrink-0" />
             <div className="min-w-0">
-              <a
-                href={attachmentDownloadUrl(instanceId, a.id)}
-                className="block text-ink hover:text-accent text-[14px] truncate font-medium"
-                download={a.filename}
+              <button
+                type="button"
+                onClick={() => downloadMut.mutate(a)}
+                disabled={downloadMut.isPending}
+                className="block text-left text-ink hover:text-accent text-[14px] truncate font-medium disabled:opacity-60"
               >
                 {a.filename}
-              </a>
+              </button>
               <div className="font-mono text-[11px] text-quiet mt-0.5 truncate">
                 {(a.size_bytes / 1024).toFixed(1)} KB · SHA-256 {a.sha256.slice(0, 12)}…
                 <span className="hidden sm:inline">
@@ -121,24 +135,25 @@ export function AttachmentsSection({ instanceId, readOnly }: Props) {
                 </span>
               </div>
             </div>
-            <a
-              href={attachmentDownloadUrl(instanceId, a.id)}
-              download={a.filename}
-              className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft"
+            <button
+              type="button"
+              onClick={() => downloadMut.mutate(a)}
+              disabled={downloadMut.isPending}
+              className="text-muted hover:text-accent inline-flex items-center justify-center p-1.5 rounded-md hover:bg-accent-soft disabled:opacity-60"
               title="Herunterladen"
               aria-label="Herunterladen"
             >
               <Download size={16} />
-            </a>
+            </button>
             {!readOnly && (
               <button
                 onClick={() => {
-                  if (confirm(`Anhang "${a.filename}" wirklich loeschen?`)) deleteMut.mutate(a.id);
+                  if (confirm(`Anhang "${a.filename}" wirklich löschen?`)) deleteMut.mutate(a.id);
                 }}
                 disabled={deleteMut.isPending}
                 className="col-start-3 sm:col-auto text-muted hover:text-bad inline-flex items-center justify-center p-1.5 rounded-md hover:bg-bad-soft"
-                title="Loeschen"
-                aria-label="Loeschen"
+                title="Löschen"
+                aria-label="Löschen"
               >
                 <Trash2 size={16} />
               </button>
