@@ -52,8 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # pnpm 11 (packageManager-Pin in web/package.json) braucht Node >= 22.13;
+      # Deploy-Image ist node:22-alpine. Node 24 als Forward-Check.
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     defaults:
       run:
         working-directory: web
