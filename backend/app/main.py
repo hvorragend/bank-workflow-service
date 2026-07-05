@@ -371,6 +371,7 @@ async def lifespan(app: FastAPI):
         bootstrap.ensure_singleton_configs(db)
         bootstrap.ensure_default_templates(db)
         bootstrap.import_legacy_files_if_present(db)
+        bootstrap.ensure_initial_admin(db)
         bootstrap.ensure_emergency_admin_or_die(db)
 
     # 4. SLA-Scheduler hochfahren — liest jetzt aus der DB.

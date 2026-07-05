@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Dev-Stack hochfahren: Bootstrap der .env (falls noetig), dann Komplett-Stack
-# (Backend + Web + Mailpit-Mail-Catcher) via docker compose. Idempotent.
+# Prod-Stack hochfahren: Bootstrap der .env (falls noetig), dann NUR den
+# Basis-Stack (Backend + Web) via docker compose — OHNE das Dev-Override,
+# also ohne Mailpit-Mail-Catcher (S-003). Idempotent.
 #
-# Der Mail-Catcher (Mailpit) kommt bewusst aus dem Dev-Override
-# docker-compose.dev.yml und ist NICHT Teil des Prod-Stacks (S-003).
+# Das Skript ersetzt die manuellen Schritte 2+3 aus deploy/README.md
+# ("Production-Deployment auf Proxmox"). Reverse-Proxy/TLS davorschalten
+# und die Checkliste "Produktions-Haertung" bleiben Aufgabe des Operators.
 #
 # Verwendung:
-#   ./deploy/dev-up.sh
+#   ./deploy/prod-up.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-DEV_OVERRIDE="$SCRIPT_DIR/docker-compose.dev.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 # --- Vorbedingungen ---------------------------------------------------------
@@ -36,12 +37,27 @@ else
     echo "==> deploy/.env vorhanden — bestehende Secrets bleiben unangetastet."
 fi
 
-# --- 2. Stack starten -------------------------------------------------------
+# --- 2. Haertungs-Hinweise (nicht blockierend) -------------------------------
+# Die Checkliste "Produktions-Haertung" in deploy/README.md bleibt massgeblich;
+# hier nur die zwei Punkte, die man beim Go-Live am haeufigsten vergisst.
 
-echo "==> Baue und starte Container (backend + web + mailpit) ..."
-docker compose -f "$COMPOSE_FILE" -f "$DEV_OVERRIDE" up -d --build
+get_env_value() {
+    grep -E "^${1}=" "$ENV_FILE" | head -n1 | cut -d= -f2- || true
+}
 
-# --- 3. Auf Backend-Healthcheck warten --------------------------------------
+if [[ "$(get_env_value REFRESH_COOKIE_SECURE)" != "true" ]]; then
+    echo "WARN: REFRESH_COOKIE_SECURE ist nicht 'true' — fuer Prod hinter TLS setzen (deploy/.env)." >&2
+fi
+if [[ -n "$(get_env_value SEED_DEMO_DATA)" ]]; then
+    echo "WARN: SEED_DEMO_DATA ist gesetzt — fiktive Demo-Antraege gehoeren NICHT in Produktion." >&2
+fi
+
+# --- 3. Stack starten (nur Basis, kein Mailpit) ------------------------------
+
+echo "==> Baue und starte Container (backend + web) ..."
+docker compose -f "$COMPOSE_FILE" up -d --build
+
+# --- 4. Auf Backend-Healthcheck warten --------------------------------------
 
 echo "==> Warte auf Backend-Bereitschaft auf http://localhost:8000/health ..."
 deadline=$(( $(date +%s) + 60 ))
@@ -58,26 +74,25 @@ while true; do
     sleep 2
 done
 
-# --- 4. Endpunkte ausgeben --------------------------------------------------
+# --- 5. Endpunkte + naechste Schritte ausgeben -------------------------------
 
 cat <<EOF
 
-  Stack laeuft.
+  Stack laeuft (Basis-Stack, ohne Mail-Catcher).
 
     Frontend (React):    http://localhost:8000
     OpenAPI / Swagger:   http://localhost:8000/docs
-    Mailpit (Mail-UI):   http://localhost:8025
 
-  Logs:        docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml logs -f
-  Stoppen:     ./deploy/dev-down.sh
-  Frontend-Hot-Reload: cd web && pnpm dev   (gegen das laufende Backend)
+  Vor dem Go-Live: Checkliste "Produktions-Haertung" in deploy/README.md
+  abarbeiten (TLS-Reverse-Proxy, WEB_HTTP_BIND=127.0.0.1, CORS, Backups, ...).
+
+  Logs:        docker compose -f deploy/docker-compose.yml logs -f
+  Stoppen:     docker compose -f deploy/docker-compose.yml down
 
 EOF
 
-# --- 5. Initial-Admin-Zugangsdaten anzeigen (nur bei Erstinbetriebnahme) -----
-# Bei leerer DB legt das Backend automatisch einen Initial-Admin an und
-# schreibt das generierte Einmal-Passwort in eine Datei im Daten-Volume.
-if creds="$(docker compose -f "$COMPOSE_FILE" -f "$DEV_OVERRIDE" exec -T backend \
+# --- 6. Initial-Admin-Zugangsdaten anzeigen (nur bei Erstinbetriebnahme) -----
+if creds="$(docker compose -f "$COMPOSE_FILE" exec -T backend \
         cat /app/data/initial-admin-password.txt 2>/dev/null)"; then
     cat <<EOF
   Erstinbetriebnahme — automatisch angelegter Admin-Login:

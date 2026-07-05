@@ -13,8 +13,9 @@ Mail-Catcher als Prod-SMTP; der SMTP-Server wird im Admin-Panel konfiguriert.
 ```
 
 Das Skript erzeugt beim ersten Lauf `deploy/.env` mit echten Secrets, startet
-Basis-Stack **plus** Dev-Override (Mailpit), baut die Container und wartet auf
-den Backend-Healthcheck.
+Basis-Stack **plus** Dev-Override (Mailpit), baut die Container, wartet auf
+den Backend-Healthcheck und zeigt bei einer Erstinbetriebnahme die
+Zugangsdaten des automatisch angelegten Initial-Admins an.
 
 Endpunkte nach dem Start:
 
@@ -33,6 +34,32 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up 
 
 SMTP im Admin-Panel dann auf `host=mailpit`, `port=1025` stellen (beide
 Container liegen im selben Compose-Netz).
+
+## Erster Login: automatischer Initial-Admin
+
+Bei **leerer Datenbank** legt der Backend-Start automatisch einen initialen
+Admin-User an, damit die Erstinbetriebnahme ohne manuelle Schritte (argon2-Hash
+erzeugen, JSON-Datei anlegen) auskommt:
+
+- Username: `INITIAL_ADMIN_USERNAME` (Default `admin`).
+- Passwort: `INITIAL_ADMIN_PASSWORD`, oder — wenn leer — ein generiertes
+  Einmal-Passwort, das im Container unter `/app/data/initial-admin-password.txt`
+  (chmod 600, im `bws-data`-Volume) abgelegt wird. `dev-up.sh`/`prod-up.sh`
+  zeigen es nach dem Start an; manuell:
+
+  ```bash
+  docker compose -f deploy/docker-compose.yml exec backend \
+      cat /app/data/initial-admin-password.txt
+  ```
+
+- Nach dem ersten Login: Passwort im Admin-Panel ändern und die Datei löschen.
+
+Der Automatismus greift **nicht**, wenn bereits ein Admin in der DB existiert,
+eine Notfall-Datei (`config/emergency_users.json`) vorhanden ist oder der
+Username schon vergeben ist — bestehende Passwörter werden nie überschrieben.
+Jede automatische Anlage erscheint im Audit-Log als `auth.user.bootstrap`.
+Die Notfall-Datei bleibt als Break-Glass-Mechanismus für den DB-Ausfall
+unverändert bestehen.
 
 ## Was `bootstrap-env.sh` macht
 
@@ -78,11 +105,19 @@ Deshalb:
 Vorgesehen ist ein Single-Host-Setup auf einer Linux-VM unter Proxmox:
 
 1. VM bereitstellen (Ubuntu 24.04 LTS empfohlen), Docker Engine installieren.
-2. Repo pullen, `./deploy/bootstrap-env.sh` für Secret-Generierung ausführen
-   (oder `deploy/.env` manuell mit produktiven Werten füllen).
-3. `docker compose -f deploy/docker-compose.yml up -d --build`
-   (ohne `docker-compose.dev.yml` — Mailpit bleibt draußen).
-4. Reverse-Proxy / TLS davorschalten (z. B. Traefik oder nginx auf dem Host).
+2. Repo pullen, dann:
+
+   ```bash
+   ./deploy/prod-up.sh
+   ```
+
+   Das Skript generiert fehlende Secrets (`bootstrap-env.sh`), startet **nur**
+   den Basis-Stack (ohne `docker-compose.dev.yml` — Mailpit bleibt draußen),
+   wartet auf den Healthcheck und zeigt die Initial-Admin-Zugangsdaten an.
+   Wer die Schritte lieber einzeln ausführt: `./deploy/bootstrap-env.sh` und
+   `docker compose -f deploy/docker-compose.yml up -d --build`.
+3. Reverse-Proxy / TLS davorschalten (z. B. Traefik oder nginx auf dem Host).
+4. Checkliste „Produktions-Härtung" (unten) abarbeiten.
 
 ## Produktions-Härtung (S-009)
 
@@ -107,6 +142,9 @@ Vor dem ersten Prod-Go-Live abarbeiten. Die genannten Env-Variablen werden in
       kann ein Client die Audit-IP fälschen.
 - [ ] **`JWT_SECRET` / `CONFIG_ENCRYPTION_KEY`** echt (kein `replace-...`),
       im richtigen Format.
+- [ ] **Initial-Admin-Passwort geändert** und
+      `/app/data/initial-admin-password.txt` im Container gelöscht (falls bei
+      der Erstinbetriebnahme generiert).
 - [ ] **`LOG_LEVEL`** auf `info` oder restriktiver.
 - [ ] **Genau 1 Worker** (siehe Abschnitt oben) — nicht skalieren.
 - [ ] **Backups testen**: mindestens einen Restore aus `sqlite_backup.sh` real

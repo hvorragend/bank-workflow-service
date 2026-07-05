@@ -7,6 +7,35 @@ Die maßgebliche Versionsnummer steht in `backend/pyproject.toml` und
 `web/package.json` (aktuell `0.3.0`) — dieser Changelog referenziert sie, ist
 aber nicht die Single Source of Truth für die Version.
 
+## [Unbestimmt] — Vereinfachte Inbetriebnahme
+
+Ein frischer Clone startet jetzt ohne manuelle Vorarbeiten durch — bisher
+scheiterte der Erststart, weil weder ein Admin in der DB noch eine
+`config/emergency_users.json` existierte (deren Erstellung einen lokal
+erzeugten argon2-Hash erforderte).
+
+### Hinzugefügt
+
+- **Automatischer Initial-Admin** (`bootstrap.ensure_initial_admin`): Bei
+  leerer DB ohne Notfall-Datei legt der Start genau einen lokalen Admin an
+  (Username via `INITIAL_ADMIN_USERNAME`, Default `admin`). Ohne
+  `INITIAL_ADMIN_PASSWORD` wird ein Einmal-Passwort generiert und nach
+  `/app/data/initial-admin-password.txt` (chmod 600) geschrieben. Die Anlage
+  wird als `auth.user.bootstrap` auditiert. Brownfield-sicher: existierende
+  Admins, vorhandene Notfall-Dateien und vergebene Usernamen führen zum Skip —
+  Passwörter werden nie überschrieben.
+- **`deploy/prod-up.sh`**: Ein-Befehl-Inbetriebnahme für den Prod-Basis-Stack
+  (Secrets-Bootstrap, Start ohne Mailpit, Healthcheck-Wait,
+  Härtungs-Warnungen, Anzeige der Initial-Admin-Zugangsdaten).
+- `dev-up.sh` zeigt nach dem Start die Initial-Admin-Zugangsdaten an, falls
+  eine Erstinbetriebnahme stattfand.
+
+### Geändert
+
+- `deploy/.env.example` und Compose dokumentieren `INITIAL_ADMIN_USERNAME` /
+  `INITIAL_ADMIN_PASSWORD`; Härtungs-Checkliste um „Initial-Admin-Passwort
+  geändert / Datei gelöscht" ergänzt.
+
 ## [Unbestimmt] — Audit-Umsetzung
 
 Umsetzung der Findings aus dem Betriebs-/Sicherheits-Audit. Betrifft nur

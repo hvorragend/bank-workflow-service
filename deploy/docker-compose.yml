@@ -43,6 +43,12 @@ services:
       CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?CONFIG_ENCRYPTION_KEY muss gesetzt sein - siehe deploy/.env.example}
       CONFIG_ENCRYPTION_KEY_OLD: ${CONFIG_ENCRYPTION_KEY_OLD:-}
       EMERGENCY_USERS_PATH: ${EMERGENCY_USERS_PATH:-config/emergency_users.json}
+      # Greenfield-Erstinbetriebnahme: Existiert weder ein Admin in der DB noch
+      # eine Notfall-Datei, legt der Start automatisch einen Initial-Admin an.
+      # Ohne INITIAL_ADMIN_PASSWORD wird ein Einmal-Passwort generiert und nach
+      # /app/data/initial-admin-password.txt geschrieben (zeigt dev-up.sh an).
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       # Brownfield: alte Pfade werden beim Start einmalig in die DB importiert,
       # danach kommt die gesamte Konfiguration aus dem Admin-Panel.
       USERS_CONFIG_PATH: ${USERS_CONFIG_PATH:-config/users.json}

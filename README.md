@@ -33,7 +33,8 @@ bank-workflow-service/
 ├── deploy/                     Container-Stack (Backend + Web; Mailpit nur Dev)
 │   ├── docker-compose.yml      Prod-Basis-Stack (Backend + Web)
 │   ├── docker-compose.dev.yml  Dev-Override (Mailpit-Mail-Catcher)
-│   ├── dev-up.sh               Stack hochfahren (inkl. Bootstrap der Secrets)
+│   ├── dev-up.sh               Dev-Stack hochfahren (inkl. Bootstrap der Secrets)
+│   ├── prod-up.sh              Prod-Basis-Stack hochfahren (ohne Mailpit)
 │   ├── dev-down.sh             Stack stoppen
 │   ├── bootstrap-env.sh        Secrets generieren
 │   ├── backup/                 Cron-Skripte fuer SQLite-/Anhang-Backups
@@ -55,7 +56,9 @@ Das Skript
 1. erzeugt beim ersten Lauf `deploy/.env` mit echten Zufalls-Secrets
    (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`),
 2. baut und startet Backend, React-Frontend und (Dev-Override) Mailpit,
-3. wartet auf den Backend-Healthcheck.
+3. wartet auf den Backend-Healthcheck,
+4. zeigt bei einer Erstinbetriebnahme die automatisch angelegten
+   Admin-Zugangsdaten an (siehe unten).
 
 Danach:
 
@@ -69,6 +72,21 @@ und gehört nicht in Produktion. Für den Prod-Betrieb siehe
 
 Stoppen mit `./deploy/dev-down.sh` (Volumes bleiben), oder
 `./deploy/dev-down.sh --volumes` für einen frischen Start.
+
+### Erster Login (Initial-Admin)
+
+Bei leerer Datenbank legt der Start automatisch **einen initialen Admin-User**
+an (Default-Username `admin`, steuerbar über `INITIAL_ADMIN_USERNAME` /
+`INITIAL_ADMIN_PASSWORD` in `deploy/.env`). Ohne vorgegebenes Passwort wird ein
+Einmal-Passwort generiert und im Container unter
+`/app/data/initial-admin-password.txt` abgelegt — `dev-up.sh` und `prod-up.sh`
+zeigen es nach dem Start an. Nach dem ersten Login das Passwort im Admin-Panel
+ändern und die Datei löschen.
+
+Der Initial-Admin wird **nur** angelegt, wenn weder ein Admin in der DB noch
+eine Notfall-Datei (`config/emergency_users.json`) existiert — Brownfield-
+Installationen bleiben unberührt, und bestehende Usernamen werden nie
+überschrieben.
 
 ## Frontend-Entwicklung mit Hot-Reload
 
@@ -101,6 +119,8 @@ Pflicht-Variablen:
 | `JWT_SECRET` | 32 Bytes Zufall (`openssl rand -hex 32`) — wird auto-generiert |
 | `CONFIG_ENCRYPTION_KEY` | Fernet-Schlüssel für SMTP-/LDAP-Service-Passwörter in der DB — wird auto-generiert |
 | `CONFIG_ENCRYPTION_KEY_OLD` | *Optional* — alter Schlüssel als Decrypt-Fallback während einer Rotation |
+| `INITIAL_ADMIN_USERNAME` | *Optional* — Username des Initial-Admins bei Erstinbetriebnahme (Default `admin`) |
+| `INITIAL_ADMIN_PASSWORD` | *Optional* — festes Passwort für den Initial-Admin; leer = Einmal-Passwort wird generiert |
 
 ## Authentifizierung
 

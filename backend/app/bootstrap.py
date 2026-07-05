@@ -8,7 +8,8 @@ Ablauf in main.lifespan() (Reihenfolge wichtig):
     4. ensure_singleton_configs(db)     # ldap_config/smtp_config/escalation_config rows id=1
     5. ensure_default_templates(db)     # Notification-Templates, falls leer
     6. import_legacy_files_if_present(db)
-    7. ensure_emergency_admin_or_die(db)
+    7. ensure_initial_admin(db)         # Greenfield: ersten Admin automatisch anlegen
+    8. ensure_emergency_admin_or_die(db)
 
 Brownfield-Sicher: alle Schritte sind idempotent. Mehrfacher Aufruf macht nichts kaputt.
 """
@@ -215,12 +216,130 @@ def import_legacy_files_if_present(db: Session) -> None:
         _import_role_emails_toml(db, role_emails_path)
 
 
+INITIAL_ADMIN_PASSWORD_FILE_DEFAULT = "/app/data/initial-admin-password.txt"
+
+
+def ensure_initial_admin(db: Session) -> None:
+    """Greenfield-Inbetriebnahme ohne manuelle Schritte: Existiert weder ein
+    aktiver Admin in der DB noch eine Notfall-Datei, wird genau EIN initialer
+    lokaler Admin-User angelegt. Damit startet ein frischer Clone out-of-the-box,
+    ohne dass der Operator vorab einen argon2-Hash erzeugen muss.
+
+    - Username: INITIAL_ADMIN_USERNAME (Default 'admin').
+    - Passwort: INITIAL_ADMIN_PASSWORD, sonst frisch generiert. Ein generiertes
+      Passwort wird nach INITIAL_ADMIN_PASSWORD_FILE geschrieben (Default
+      /app/data/initial-admin-password.txt, chmod 600) — nur wenn das nicht
+      moeglich ist, landet es ersatzweise einmalig im Log.
+
+    Brownfield-sicher: laeuft NICHT, wenn bereits ein Admin existiert, eine
+    Notfall-Datei vorhanden ist (Operator hat einen Break-Glass-Weg) oder der
+    Username schon vergeben ist (nie fremde Passwoerter ueberschreiben).
+    """
+    if _has_active_admin(db):
+        return
+
+    emergency_path = Path(_env("EMERGENCY_USERS_PATH", EMERGENCY_USERS_PATH_DEFAULT))
+    if emergency_path.exists():
+        log.info(
+            "Kein DB-Admin, aber Notfall-Datei vorhanden — es wird kein "
+            "Initial-Admin automatisch angelegt."
+        )
+        return
+
+    username = _env("INITIAL_ADMIN_USERNAME", "admin").strip() or "admin"
+    if db.scalar(select(models.User).where(models.User.username == username)):
+        log.warning(
+            "Initial-Admin uebersprungen: Username '%s' existiert bereits, hat "
+            "aber keine Admin-Berechtigung. Passwoerter werden nie automatisch "
+            "ueberschrieben — anderen Namen via INITIAL_ADMIN_USERNAME waehlen "
+            "oder eine Notfall-Datei anlegen.",
+            username,
+        )
+        return
+
+    password = _env("INITIAL_ADMIN_PASSWORD", "").strip()
+    generated = False
+    if not password:
+        import secrets as stdlib_secrets
+        password = stdlib_secrets.token_urlsafe(15)
+        generated = True
+
+    admin_role = db.scalar(select(models.Role).where(models.Role.name == "Admin"))
+    if admin_role is None:
+        admin_role = ensure_admin_role(db)
+
+    user = models.User(
+        username=username,
+        display_name=username,
+        email=None,
+        auth_source="local",
+        password_argon2=PasswordHasher().hash(password),
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+    db.add(models.UserRole(user_id=user.id, role_id=admin_role.id))
+    from .audit import write_event
+    write_event(
+        db,
+        kategorie="auth",
+        action="user.bootstrap",
+        akteur="bootstrap",
+        target_type="user",
+        target_id=user.id,
+        payload={"username": username, "roles": ["Admin"], "password_generated": generated},
+        commit=False,
+    )
+    db.commit()
+
+    if not generated:
+        log.warning(
+            "Initial-Admin '%s' angelegt (Passwort aus INITIAL_ADMIN_PASSWORD). "
+            "Nach dem ersten Login im Admin-Panel aendern.",
+            username,
+        )
+        return
+
+    password_file = Path(_env("INITIAL_ADMIN_PASSWORD_FILE", INITIAL_ADMIN_PASSWORD_FILE_DEFAULT))
+    try:
+        password_file.write_text(
+            "# Automatisch generierter Initial-Admin fuer die Erstinbetriebnahme.\n"
+            "# Nach dem ersten Login: Passwort im Admin-Panel aendern und diese "
+            "Datei loeschen.\n"
+            f"username={username}\n"
+            f"password={password}\n",
+            encoding="utf-8",
+        )
+        password_file.chmod(0o600)
+        log.warning(
+            "Initial-Admin '%s' angelegt. Das generierte Einmal-Passwort steht in "
+            "%s — nach dem ersten Login im Admin-Panel aendern und die Datei "
+            "loeschen.",
+            username,
+            password_file,
+        )
+    except OSError as e:
+        # Letzter Ausweg: ohne das Passwort waere der frisch angelegte Admin
+        # unbenutzbar. Einmalig loggen statt den Start scheitern zu lassen.
+        log.warning(
+            "Initial-Admin '%s' angelegt, aber %s nicht schreibbar (%s). "
+            "Einmal-Passwort: %s — nach dem ersten Login sofort aendern.",
+            username,
+            password_file,
+            e,
+            password,
+        )
+
+
 def ensure_emergency_admin_or_die(db: Session) -> None:
     """Garantiert, dass es einen aktiven Weg ins Admin-Panel gibt:
        1. Es existiert ein aktiver User mit der Permission 'admin.users.write', ODER
        2. config/emergency_users.json ist vorhanden und valide.
 
     Falls beides fehlt, refused der App-Start mit einer klaren Anleitung.
+    Normalfall bei Greenfield: ensure_initial_admin hat vorher bereits einen
+    Admin angelegt, sodass dieser Check nur noch bei Sonderfaellen greift
+    (z. B. Username-Konflikt beim Initial-Admin).
     """
     if _has_active_admin(db):
         log.info("Admin-User in DB vorhanden — Notfall-Datei nicht noetig.")
@@ -233,6 +352,8 @@ def ensure_emergency_admin_or_die(db: Session) -> None:
             f"(gesucht unter {path.resolve() if path.is_absolute() else path}, "
             f"CWD: {Path.cwd()}). Mindestens eines von beidem ist noetig — "
             "sonst startet der Service nicht und der Reverse-Proxy liefert 502. "
+            "Normalerweise legt der Start automatisch einen Initial-Admin an "
+            "(siehe INITIAL_ADMIN_USERNAME); das wurde hier uebersprungen. "
             "Schnellster Fix: 'cp config/emergency_users.example.json "
             "config/emergency_users.json' und einen argon2-Hash via "
             "'python -m app.auth.hash_password' eintragen. Alternativ einen "
@@ -389,6 +510,7 @@ __all__ = [
     "ensure_singleton_configs",
     "ensure_default_templates",
     "import_legacy_files_if_present",
+    "ensure_initial_admin",
     "ensure_emergency_admin_or_die",
     "get_emergency_users",
     "reset_emergency_users",
